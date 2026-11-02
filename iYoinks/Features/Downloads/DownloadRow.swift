@@ -4,27 +4,26 @@ import YoinksCore
 @MainActor
 struct DownloadRow: View {
     @EnvironmentObject private var queue: DownloadQueue
+    @EnvironmentObject private var library: MediaLibrary
+    @EnvironmentObject private var theme: AppTheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let job: DownloadJob
     var fileDeleted = false
+    var showsActions = true
+    @ScaledMetric(relativeTo: .subheadline) private var thumbnailWidth = 60
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: symbol).font(.title2).foregroundStyle(statusColor)
-                    .frame(width: 32, height: 32).accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(job.title).font(.headline).lineLimit(2)
-                    Text(job.sourceURL.host ?? "Media link").font(.caption).foregroundStyle(.secondary)
-                    if let selection = job.sourceSelection {
-                        Text("\(selection.kind.rawValue.capitalized) · \(selection.quality)").font(.caption).foregroundStyle(.secondary)
-                    }
+        VStack(alignment: .leading, spacing: 6) {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    titleAndThumbnail
+                    if showsActions { actions }
                 }
-                Spacer(minLength: 0)
-            }
-            HStack {
-                Text(fileDeleted ? "File deleted" : status).font(.subheadline)
-                Spacer()
-                if job.receivedBytes > 0 { Text(byteSummary).font(.caption).foregroundStyle(.secondary) }
+            } else {
+                HStack(alignment: .top, spacing: 8) {
+                    titleAndThumbnail
+                    if showsActions { actions }
+                }
             }
             if job.phase == .downloading {
                 if let fraction = job.progress?.fractionCompleted { ProgressView(value: fraction) }
@@ -34,20 +33,61 @@ struct DownloadRow: View {
             } else if [.extracting, .processing, .saving, .pausing, .cancelling].contains(job.phase) {
                 ProgressView()
             }
-            if let message = job.message { Text(message).font(.caption).foregroundStyle(job.phase == .failed ? .red : .secondary) }
-            actions
+            if job.receivedBytes > 0 {
+                Text(byteSummary).font(.caption2).monospacedDigit().foregroundStyle(.secondary)
+            }
+            if let message = job.message { Text(message).font(.caption).foregroundStyle(job.phase == .failed ? Color.red : Color.secondary) }
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 6)
         .accessibilityElement(children: .contain)
+    }
+
+    private var titleAndThumbnail: some View {
+        HStack(alignment: .top, spacing: 10) {
+            thumbnail
+                .frame(width: thumbnailWidth, height: thumbnailWidth / 1.5)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(job.title).font(.subheadline.weight(.medium)).lineLimit(2).foregroundStyle(.primary)
+                if let selection = job.sourceSelection {
+                    Text("\(selection.kind.rawValue.capitalized) · \(selection.quality)").font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text(job.sourceURL.host ?? "Media link").font(.caption).foregroundStyle(.secondary)
+                }
+                if job.phase != .completed || fileDeleted {
+                    Text(fileDeleted ? "File deleted" : status).font(.caption).foregroundStyle(statusColor)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var thumbnail: some View {
+        if job.phase == .completed, !fileDeleted, let details = library.details[job.id] {
+            MediaThumbnail(id: job.id, kind: details.kind)
+                .overlay(alignment: .bottomLeading) {
+                    Text(MediaPresentation.duration(details.duration))
+                        .font(.caption2).monospacedDigit().foregroundStyle(.white)
+                        .padding(3).background(.black.opacity(0.65), in: Capsule()).padding(3)
+                }
+        } else {
+            ZStack {
+                AppStyle.controlBackground
+                Image(systemName: job.sourceSelection?.kind == .audio && !fileDeleted ? "waveform" : symbol)
+                    .font(.title2).foregroundStyle(statusColor)
+            }
+        }
     }
 
     @ViewBuilder
     private var actions: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack { actionButtons }.fixedSize(horizontal: true, vertical: false)
-            VStack(alignment: .leading) { actionButtons }
+        HStack(spacing: 4) {
+            actionButtons
         }
-        .buttonStyle(.bordered).controlSize(.large)
+        .labelStyle(.iconOnly)
+        .buttonStyle(AppSecondaryButtonStyle())
     }
 
     @ViewBuilder
@@ -55,25 +95,34 @@ struct DownloadRow: View {
         switch job.phase {
         case .extracting, .downloading, .waiting:
             Button("Pause", systemImage: "pause") { Task { await queue.pause(job.id) } }
-            Button("Cancel", role: .destructive) { Task { await queue.cancel(job.id) } }
+            cancelMenu
         case .paused:
             Button("Resume", systemImage: "play") { Task { await queue.resume(job.id) } }
-            Button("Cancel", role: .destructive) { Task { await queue.cancel(job.id) } }
+            cancelMenu
         case .queued:
-            Button("Cancel", role: .destructive) { Task { await queue.cancel(job.id) } }
+            cancelMenu
         case .failed, .cancelled:
             Button("Retry", systemImage: "arrow.clockwise") { Task { await queue.retry(job.id) } }
-            Button("Remove", role: .destructive) { Task { await queue.remove(job.id) } }
+            Button("Remove", systemImage: "trash", role: .destructive) { Task { await queue.remove(job.id) } }
         case .completed:
             EmptyView()
         case .processing:
             if job.sourceSelection != nil {
                 Button("Pause", systemImage: "pause") { Task { await queue.pause(job.id) } }
-                Button("Cancel", role: .destructive) { Task { await queue.cancel(job.id) } }
+                cancelMenu
             }
         case .saving, .pausing, .cancelling:
             EmptyView()
         }
+    }
+
+    private var cancelMenu: some View {
+        Menu {
+            Button("Cancel download", systemImage: "xmark", role: .destructive) { Task { await queue.cancel(job.id) } }
+        } label: {
+            Image(systemName: "ellipsis").frame(width: 44, height: 44).contentShape(Rectangle())
+        }
+        .accessibilityLabel("Actions for \(job.title)")
     }
 
     private var byteSummary: String {
@@ -112,8 +161,8 @@ struct DownloadRow: View {
     private var statusColor: Color {
         switch job.phase {
         case .failed: .red
-        case .completed: fileDeleted ? .secondary : .green
-        default: .purple
+        case .completed: fileDeleted ? .secondary : theme.accent
+        default: theme.accent
         }
     }
 }

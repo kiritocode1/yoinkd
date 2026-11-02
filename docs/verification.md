@@ -1,6 +1,29 @@
 # Verification results
 
-These results cover iYoinks 0.3.0, build 3, on Arch Linux on 2026-11-02. The implementation received human approval through Plannotator. Native runtime and UI testing remain pending for this version.
+## UI and accent themes
+
+The UI and theming refinement builds as iYoinks 0.3.0, build 3, on Arch Linux on 2026-11-02. The plan received human approval through Plannotator. Device verification was explicitly excluded by request. The version, bundle identifier, storage model and extraction services remain unchanged.
+
+| Check | Observed result |
+| --- | --- |
+| Focused theme tests | 9 passed. All six preference values survive new UserDefaults/preferences instances. Invalid settings fall back to Sage. Tests cover neutral artwork fallback, a useful secondary colour in mostly black/white artwork, saturation normalization, deterministic extraction and stale selection rejection. |
+| Contrast | Curated palettes and all 360 sampled hue angles pass 4.5:1 against the defined light/dark surfaces. Primary-action text also passes for the curated palettes. This checks palette math, not actual glass rendering. |
+| Existing core suite | All 37 tests passed, including the 9 new theme tests. Existing link, queue, source quality and file-recovery tests remain passing. |
+| Native release build | arm64 release compiled with iPhoneOS SDK 27.2, minimum iOS 17. Final incremental build completed in 18.05 seconds. |
+| Final IPA | ZIP CRC, executable platform, project references, bundled extractor, both icon masters, all sixteen scaled icons and all 68 Python framework mappings passed. |
+| UI and native runtime | Unverified. No Argent, screenshot comparison, interaction, VoiceOver, launcher switch or actual app-restart check ran. |
+
+The final unsigned archive is `xtool/iYoinks.ipa`, 31,280,821 bytes. The sum of unpacked ZIP entry bytes is 84,298,527. SHA-256 is `7bfd8db4f2a9a43add04f54f315bf8031da478f71380835b30562738e130e1fd`. These values describe this checked archive, not installed storage or runtime memory. `build/release-check.json` contains the full packaging result. `build/theme-core-tests.log` and `build/theme-release-build.log` contain the final test and compilation logs. Rebuilding changes the artifact hash.
+
+Implementation review received human approval through Plannotator. A separate source review found transient thumbnail failures being cached as neutral; the cache now retains only results with artwork data. The existing selection test also covers discarding the previous item's palette before enabling Dynamic on a newly selected item.
+
+Static accents use shared tint and primary-button styles. Dynamic follows saved-media selection and temporarily previews inspected Add Link artwork. Selection resets on relaunch while the Dynamic preference persists. Active downloads retain placeholder thumbnails because the existing queue model does not store artwork. No speeds or thumbnails are invented. History groups by the existing job creation date.
+
+The light launcher artwork is primary in the xtool archive; Settings exposes an explicit dark alternate. Xcode includes a native dark luminosity slot but catalog compilation is unverified here. In-app brand images follow the app appearance. See [icon notes](icons.md) and [manual theme checks](phone-testing.md).
+
+## Earlier source-download checks
+
+The following results describe the source-download implementation before the UI/theme refinement, also built on 2026-11-02. Its archive measurements are historical, not the current IPA.
 
 ## Build and focused checks
 

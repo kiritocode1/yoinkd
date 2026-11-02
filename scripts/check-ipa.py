@@ -58,11 +58,13 @@ def check(path):
     spec = importlib.util.spec_from_file_location("project_check", PROJECT / "scripts/check-project.py")
     project_check = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(project_check)
+    icons = project_check.PACKAGE_ICONS
     source_info = plistlib.loads((PROJECT / "iYoinks/Info.plist").read_bytes())
     prefix = "Payload/iYoinks.app/"
     with zipfile.ZipFile(path) as archive:
         assert archive.testzip() is None, "IPA CRC failure"
         names = set(archive.namelist())
+        assert len(names) == len(archive.namelist()), "Duplicate IPA entries"
         info = plistlib.loads(archive.read(prefix + "Info.plist"))
         for key in ("CFBundleShortVersionString", "CFBundleVersion", "MinimumOSVersion", "BGTaskSchedulerPermittedIdentifiers", "UIBackgroundModes"):
             assert info[key] == source_info[key], key
@@ -77,11 +79,26 @@ def check(path):
         assert executable["sdk"] >= [26, 0, 0]
         assert "@rpath/Python.framework/Python" in executable["dependencies"]
         assert archive.read(prefix + "AppIcon.png") == (PROJECT / "iYoinks/Assets.xcassets/AppIcon.appiconset/AppIcon.png").read_bytes()
+        assert info[icons.FALLBACK_KEY] is True, "Missing xtool icon fallback flag"
+        assert info["CFBundleIconFile"] == "AppIcon"
+        packaged_icons = info["CFBundleIcons"]
+        assert packaged_icons["CFBundlePrimaryIcon"]["CFBundleIconFiles"] == icons.icon_files("AppIcon")
+        assert packaged_icons["CFBundleAlternateIcons"][icons.ALTERNATE_NAME]["CFBundleIconFiles"] == icons.icon_files(icons.ALTERNATE_NAME)
+        for icon_name in ("AppIcon", icons.ALTERNATE_NAME):
+            data = archive.read(prefix + icon_name + ".png")
+            assert data == (icons.ICON_SET / (icon_name + ".png")).read_bytes()
+            icons.check_png(data, 1024, opaque=True)
+            for points, base in zip(icons.ICON_POINTS, icons.icon_files(icon_name)):
+                for scale in icons.ICON_SCALES:
+                    icons.check_png(archive.read(prefix + f"{base}@{scale}x.png"), points * scale, opaque=True)
         scripts = [name for name in names if name.endswith("/Resources/Extractor/iyoinks_extract.py")]
         assert len(scripts) == 1
         resource_root = scripts[0].removesuffix("Extractor/iyoinks_extract.py")
         assert archive.read(scripts[0]) == (PROJECT / "iYoinks/Resources/Extractor/iyoinks_extract.py").read_bytes()
         assert archive.read(resource_root + "BrandMark.png") == (PROJECT / "iYoinks/Resources/BrandMark.png").read_bytes()
+        light_brand = archive.read(resource_root + "BrandMarkLight.png")
+        assert light_brand == (PROJECT / "iYoinks/Resources/BrandMarkLight.png").read_bytes()
+        icons.check_png(light_brand, 512)
         for relative in ("Python/lib/python3.15/encodings/__init__.py", "Extractor/yt_dlp/__init__.py",
                          "Extractor/yt_dlp_ejs/__init__.py", "Extractor/certifi/cacert.pem", "Legal/ThirdPartyNotices.txt"):
             assert resource_root + relative in names, relative
@@ -120,6 +137,9 @@ def check(path):
         "architecture": "arm64", "minimum_ios": executable["minimum"], "linked_sdk": executable["sdk"],
         "python_module_frameworks": len(modules), "python_framework_mappings": "passed", "zip_crc": "passed",
         "branding_matches_source": True, "bundled_extractor_matches_source": True,
+        "launcher_icon_pngs": "passed; both masters and eight sizes per appearance are opaque RGB",
+        "alternate_icon_name": icons.ALTERNATE_NAME,
+        "alternate_icon_fallback_flag": info[icons.FALLBACK_KEY],
         "apple_signing": "not_established_by_this_check", "native_runtime": "unverified; manual iPhone review required",
     }
 

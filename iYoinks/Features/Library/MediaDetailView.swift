@@ -6,6 +6,7 @@ import YoinksCore
 struct MediaDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var library: MediaLibrary
+    @EnvironmentObject private var theme: AppTheme
     @ObservedObject var item: LibraryItem
     @State private var player: AVPlayer?
     @State private var fileURL: URL?
@@ -24,6 +25,9 @@ struct MediaDetailView: View {
         }
         .navigationTitle(isRemoved ? "Media" : item.title)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            if !isRemoved { theme.selectMedia(id: item.id, storage: library.storage) }
+        }
         .onChange(of: isRemoved) { _, removed in
             if removed { player?.pause(); dismiss() }
         }

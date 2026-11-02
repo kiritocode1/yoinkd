@@ -19,6 +19,7 @@ ExportOptions*.plist
 /.plannotator/local-media-workflow/verified-archive/
 /.cache/
 /.plannotator/
+/.design-system/
 /Vendor/
 /Packages/YoinksExtractor/Vendor/
 /Packages/YoinksExtractor/Sources/QuickJS/

@@ -7,4 +7,5 @@ mkdir -p build
 python3 scripts/check-project.py > build/project-check.json
 xtool dev build --configuration release --ipa
 python3 scripts/package-python.py --ipa xtool/iYoinks.ipa
+doc-python scripts/package-icons.py --ipa xtool/iYoinks.ipa
 python3 scripts/check-ipa.py xtool/iYoinks.ipa --output build/release-check.json

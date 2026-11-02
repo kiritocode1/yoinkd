@@ -5,6 +5,7 @@ import YoinksCore
 struct AddLinkView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var queue: DownloadQueue
+    @EnvironmentObject private var theme: AppTheme
     let onEnqueued: () -> Void
     @State private var input = ""
     @State private var errorMessage: String?
@@ -21,20 +22,10 @@ struct AddLinkView: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Paste a video or audio link", text: $input)
-                        .accessibilityLabel("Media link")
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .focused($isLinkFocused)
-                        .submitLabel(.go)
-                        .disabled(isAdding)
-                        .onChange(of: input) { _, _ in resetInspection() }
-                        .onSubmit { performAction() }
-                    PasteButton(payloadType: String.self) { values in
-                        if let value = values.first { input = value; isLinkFocused = true }
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 8) { linkField; pasteControl }
+                        VStack(alignment: .leading, spacing: 8) { linkField; pasteControl }
                     }
-                    .disabled(isAdding)
                 } header: {
                     Text("Link")
                 } footer: {
@@ -51,21 +42,53 @@ struct AddLinkView: View {
                     Section { Text(queue.restoreError ?? "Opening downloads...").foregroundStyle(.secondary) }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(AppStyle.background)
             .navigationTitle("Add link")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(isAdding) }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }.buttonStyle(AppSecondaryButtonStyle()).disabled(isAdding)
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     if isAdding || isChecking { ProgressView() } else {
                         Button(media != nil || isDirectFile ? "Download" : "Check link") { performAction() }
+                            .buttonStyle(AppPrimaryButtonStyle())
                             .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !queue.isReady)
                     }
                 }
             }
-            .interactiveDismissDisabled(isAdding)
-            .task { isLinkFocused = true }
-            .onDisappear { checkTask?.cancel() }
         }
+        .interactiveDismissDisabled(isAdding)
+        .task { isLinkFocused = true }
+        .onDisappear {
+            checkTask?.cancel()
+            theme.endPreview()
+        }
+    }
+
+    private var linkField: some View {
+        TextField("Paste a video or audio link", text: $input)
+            .accessibilityLabel("Media link")
+            .keyboardType(.URL)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .focused($isLinkFocused)
+            .submitLabel(.go)
+            .frame(minHeight: 44)
+            .disabled(isAdding)
+            .onChange(of: input) { _, _ in resetInspection() }
+            .onSubmit { performAction() }
+    }
+
+    private var pasteControl: some View {
+        PasteButton(payloadType: String.self) { values in
+            if let value = values.first { input = value; isLinkFocused = true }
+        }
+        .buttonBorderShape(.capsule)
+        .controlSize(.regular)
+        .frame(minWidth: 44, minHeight: 44)
+        .disabled(isAdding)
     }
 
     @ViewBuilder
@@ -79,22 +102,20 @@ struct AddLinkView: View {
                         .frame(maxWidth: .infinity, minHeight: 140)
                 }
                 .frame(maxHeight: 220)
+                .clipShape(RoundedRectangle(cornerRadius: AppStyle.cornerRadius))
                 .accessibilityHidden(true)
             }
-            Text(media.title).font(.headline).lineLimit(3)
+            Text(media.title).font(.subheadline.weight(.semibold)).lineLimit(3)
             if let uploader = media.uploader, !uploader.isEmpty {
-                Text(uploader).foregroundStyle(.secondary)
+                Text(uploader).font(.caption).foregroundStyle(.secondary)
             }
             LabeledContent("Source", value: media.platformLabel)
             if let duration = media.duration { LabeledContent("Duration", value: MediaPresentation.duration(duration)) }
         }
         Section {
             if !media.videoFormats.isEmpty, !media.audioFormats.isEmpty {
-                Picker("Download", selection: $kind) {
-                    Text("Video").tag(MediaKind.video)
-                    Text("Audio").tag(MediaKind.audio)
-                }
-                .pickerStyle(.segmented)
+                AppPillPicker(label: "Download format", options: [MediaKind.video, .audio], selection: $kind,
+                              title: { $0 == .video ? "Video" : "Audio" }, symbol: { $0 == .video ? "video" : "music.note" })
                 .onChange(of: kind) { _, _ in formatID = "" }
             }
             Picker("Quality", selection: $formatID) {
@@ -144,6 +165,7 @@ struct AddLinkView: View {
     }
 
     private func resetInspection() {
+        theme.endPreview()
         checkID = UUID()
         checkTask?.cancel()
         isChecking = false
@@ -167,6 +189,7 @@ struct AddLinkView: View {
                     let result = try await NativeExtractor.inspect(link)
                     guard !Task.isCancelled, checkID == requestID else { return }
                     media = result
+                    theme.previewArtwork(url: result.thumbnailURL, id: result.sourceURL.absoluteString)
                     kind = result.videoFormats.isEmpty ? .audio : .video
                     formatID = ""
                 } catch {

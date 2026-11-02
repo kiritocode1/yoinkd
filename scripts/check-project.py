@@ -1,13 +1,17 @@
 """Check project references and shared build settings without an Apple toolchain."""
 
 import json
+import hashlib
+import importlib.util
 import plistlib
 import re
-import struct
 from pathlib import Path
 from xml.etree import ElementTree
 
 ROOT = Path(__file__).resolve().parent.parent
+ICON_SPEC = importlib.util.spec_from_file_location("package_icons", ROOT / "scripts/package-icons.py")
+PACKAGE_ICONS = importlib.util.module_from_spec(ICON_SPEC)
+ICON_SPEC.loader.exec_module(PACKAGE_ICONS)
 
 
 def parse_openstep(source):
@@ -157,23 +161,44 @@ def check():
     with (ROOT / config["infoPath"]).open("rb") as file:
         info = plistlib.load(file)
     assert "UIDesignRequiresCompatibility" not in info
+    assert PACKAGE_ICONS.FALLBACK_KEY not in info, "The icon fallback flag is xtool-only"
+    assert "CFBundleIcons" not in info, "Let Xcode generate its icon metadata"
     icon_path = ROOT / config["iconPath"]
     icon_set = json.loads((icon_path.parent / "Contents.json").read_text())
-    assert icon_set["images"] == [{
+    light_entry = {
         "filename": icon_path.name,
         "idiom": "universal",
         "platform": "ios",
         "size": "1024x1024",
-    }]
+    }
+    dark_entry = dict(light_entry, filename="AppIconDark.png", appearances=[{
+        "appearance": "luminosity", "value": "dark",
+    }])
+    assert icon_set["images"] == [light_entry, dark_entry]
     icon_data = icon_path.read_bytes()
-    assert icon_data[:8] == b"\x89PNG\r\n\x1a\n"
-    assert struct.unpack(">II", icon_data[16:24]) == (1024, 1024)
+    PACKAGE_ICONS.check_png(icon_data, 1024, opaque=True)
+    dark_data = (icon_path.parent / "AppIconDark.png").read_bytes()
+    PACKAGE_ICONS.check_png(dark_data, 1024, opaque=True)
+    assert hashlib.sha256(dark_data).hexdigest() == "7adfb93cec69085eef621bce785d330d54411f6ec4153904cbeb3ab2f4f13987", "Original dark artwork changed"
+    assert icon_data != dark_data
+    alternate_path = icon_path.parents[1] / "AppIconDark.appiconset"
+    alternate_set = json.loads((alternate_path / "Contents.json").read_text())
+    assert alternate_set["images"] == [dict(light_entry, filename="AppIconDark.png")]
+    assert (alternate_path / "AppIconDark.png").read_bytes() == dark_data
+    for name in ("BrandMark.png", "BrandMarkLight.png"):
+        PACKAGE_ICONS.check_png((ROOT / "iYoinks/Resources" / name).read_bytes(), 512)
+    assert (ROOT / "iYoinks/Resources/BrandMarkLight.png").read_bytes() != (ROOT / "iYoinks/Resources/BrandMark.png").read_bytes()
+    assert hashlib.sha256((ROOT / "iYoinks/Resources/BrandMark.png").read_bytes()).hexdigest() == "13c247c6f3a23bff4a5c33d6830b3442dc585b2b498c1edc0bd52d50cc6952c5", "Original dark brand changed"
     resources = next(phase for phase in phases if phase["isa"] == "PBXResourcesBuildPhase")
     resource_files = [objects[objects[identifier]["fileRef"]] for identifier in resources["files"]]
     assert any(
         obj["lastKnownFileType"] == "folder.assetcatalog" and ROOT / obj["path"] == icon_path.parents[1]
         for obj in resource_files
     )
+    assert any(
+        obj["lastKnownFileType"] == "folder" and obj["path"] == "iYoinks/Resources"
+        for obj in resource_files
+    ), "Register the Resources folder for both brand images in Xcode"
     configurations = objects[target["buildConfigurationList"]]["buildConfigurations"]
     for identifier in configurations:
         settings = objects[identifier]["buildSettings"]
@@ -183,6 +208,10 @@ def check():
         assert settings["MARKETING_VERSION"] == info["CFBundleShortVersionString"]
         assert settings["CURRENT_PROJECT_VERSION"] == info["CFBundleVersion"]
         assert settings["ASSETCATALOG_COMPILER_APPICON_NAME"] == icon_path.parent.stem
+        alternate_names = settings.get("ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES", "")
+        if isinstance(alternate_names, str):
+            alternate_names = alternate_names.split()
+        assert PACKAGE_ICONS.ALTERNATE_NAME in alternate_names, "Register AppIconDark in Xcode's alternate app icon sets"
         assert settings["INFOPLIST_KEY_CFBundleDisplayName"] == info["CFBundleDisplayName"]
         assert [int(family) for family in settings["TARGETED_DEVICE_FAMILY"].split(",")] == info["UIDeviceFamily"]
         assert settings["INFOPLIST_KEY_UISupportedInterfaceOrientations"].split() == info["UISupportedInterfaceOrientations"]
@@ -197,6 +226,10 @@ def check():
         "scheme_and_workspace_xml": "passed",
         "xcode_xtool_bundle_settings": "passed",
         "app_icon_assets": "passed",
+        "app_icon_alternate_name": PACKAGE_ICONS.ALTERNATE_NAME,
+        "app_icon_dark_luminosity_slot": "passed",
+        "original_dark_artwork": "preserved",
+        "in_app_brand_assets": "passed",
         "swift_compilation": "not_checked_by_this_script",
         "native_ui": "not_checked_by_this_script",
     }

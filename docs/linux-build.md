@@ -2,6 +2,8 @@
 
 Use Swift, xtool, Python 3.12 or newer, GNU patch, and the Darwin iPhoneOS SDK. This workspace uses `/usr/bin/swift` 6.4.2, xtool, and SDK 27.2. The app targets iOS 17 and uses native SwiftUI.
 
+Icon packaging also requires `doc-python` with Pillow in the existing document environment. Check it with `doc-python -c 'from PIL import Image; print(Image.__version__)'`. Do not install Pillow into Arch's system Python. Both project and IPA checks use only the Python standard library.
+
 Prepare dependencies and run the focused core checks:
 
 ```sh
@@ -19,7 +21,7 @@ env PATH="/usr/bin:$PATH" bash scripts/build-native.sh
 
 The output is `xtool/iYoinks.ipa`. The checker validates arm64, iOS 17, the linked SDK, branding, bundled source, and all Python framework mappings. `build/release-check.json` records its SHA-256 and sizes.
 
-Plain `xtool dev build --ipa` is an intermediate archive. It needs the Python packaging step before signing or installation. The wrapper performs that step. It does not authenticate, sign, or install.
+Plain `xtool dev build --ipa` is an intermediate archive. It needs the Python and icon packaging steps before signing or installation. The wrapper performs both steps. It does not authenticate, sign, or install. See [Light and dark icons](icons.md) for the explicit alternate-icon contract and Xcode luminosity support.
 
 For extractor checks on Linux, install host FFmpeg and a C compiler, then run:
 

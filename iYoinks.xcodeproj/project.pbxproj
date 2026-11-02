@@ -5,6 +5,56 @@
 	};
 	"objectVersion" = 56;
 	"objects" = {
+		"A11CE0000000000000000001" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/App/AppTheme.swift";
+			"sourceTree" = "<group>";
+		};
+		"A11CE0000000000000000002" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A11CE0000000000000000001";
+		};
+		"A11CE0000000000000000003" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/App/ArtworkPaletteCache.swift";
+			"sourceTree" = "<group>";
+		};
+		"A11CE0000000000000000004" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A11CE0000000000000000003";
+		};
+		"A11CE0000000000000000005" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/App/AppIconPicker.swift";
+			"sourceTree" = "<group>";
+		};
+		"A11CE0000000000000000006" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A11CE0000000000000000005";
+		};
+		"A11CE0000000000000000007" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/App/AppStyle.swift";
+			"sourceTree" = "<group>";
+		};
+		"A11CE0000000000000000008" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A11CE0000000000000000007";
+		};
+		"A11CE0000000000000000009" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Features/Downloads/HistoryView.swift";
+			"sourceTree" = "<group>";
+		};
+		"A11CE000000000000000000A" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A11CE0000000000000000009";
+		};
 		"6E9B7697F38FA41689E5E7A4" = {
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "folder.assetcatalog";
@@ -113,6 +163,10 @@
 				"1430E23DF006CCFAD774A408",
 				"5EB5659FA63EBBB635842BAF",
 				"C38522D0CA9810C471A6858E",
+				"A11CE0000000000000000001",
+				"A11CE0000000000000000003",
+				"A11CE0000000000000000005",
+				"A11CE0000000000000000007",
 			);
 			"name" = "App";
 			"sourceTree" = "<group>";
@@ -130,6 +184,7 @@
 			"children" = (
 				"841796CEBD409FE6D3AF6139",
 				"15DF9326141A082BEDBE5A8B",
+				"A11CE0000000000000000009",
 			);
 			"name" = "Downloads";
 			"sourceTree" = "<group>";
@@ -273,6 +328,11 @@
 				"D9C718E1399DAACAECE0C982",
 				"FAEAB5A4712A7F5653D46736",
 				"68D0E9D67C458815004BCAD9",
+				"A11CE0000000000000000002",
+				"A11CE0000000000000000004",
+				"A11CE0000000000000000006",
+				"A11CE0000000000000000008",
+				"A11CE000000000000000000A",
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -318,6 +378,7 @@
 			"isa" = "XCBuildConfiguration";
 			"buildSettings" = {
 				"ASSETCATALOG_COMPILER_APPICON_NAME" = "AppIcon";
+				"ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES" = "AppIconDark";
 				"CODE_SIGN_STYLE" = "Automatic";
 				"CURRENT_PROJECT_VERSION" = "3";
 				"ENABLE_PREVIEWS" = "YES";
@@ -365,6 +426,7 @@
 			"isa" = "XCBuildConfiguration";
 			"buildSettings" = {
 				"ASSETCATALOG_COMPILER_APPICON_NAME" = "AppIcon";
+				"ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES" = "AppIconDark";
 				"CODE_SIGN_STYLE" = "Automatic";
 				"CURRENT_PROJECT_VERSION" = "3";
 				"ENABLE_PREVIEWS" = "YES";

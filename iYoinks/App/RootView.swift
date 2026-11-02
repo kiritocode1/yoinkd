@@ -1,23 +1,28 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum AppTab: Hashable { case library, downloads, settings }
+enum AppTab: Hashable { case library, downloads, history, settings }
 
 @MainActor
 struct RootView: View {
     @EnvironmentObject private var library: MediaLibrary
     @EnvironmentObject private var queue: DownloadQueue
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("appearance") private var appearance = AppAppearance.system
+    @StateObject private var theme = AppTheme()
     @State private var selectedTab = AppTab.library
     @State private var showsAddLink = false
     @State private var showsImporter = false
 
     var body: some View {
         nativeTabs
-            .tint(.purple)
+            .tint(theme.accent)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: theme.palette)
             .preferredColorScheme(appearance.colorScheme)
             .sheet(isPresented: $showsAddLink) {
                 AddLinkView { selectedTab = .downloads }
+                    .tint(theme.accent)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: theme.palette)
                     .presentationDetents([.large])
             }
             .fileImporter(isPresented: $showsImporter, allowedContentTypes: [.movie, .audio], allowsMultipleSelection: true) { result in
@@ -34,6 +39,8 @@ struct RootView: View {
             } message: {
                 Text(library.errorMessage ?? "")
             }
+            .onChange(of: Set(library.details.keys)) { _, ids in theme.retainSelection(in: ids) }
+            .environmentObject(theme)
     }
 
     @ViewBuilder
@@ -47,6 +54,9 @@ struct RootView: View {
                     DownloadsView(onAddLink: { showsAddLink = true })
                 }
                 .badge(queue.activeCount)
+                Tab("History", systemImage: "clock.arrow.circlepath", value: AppTab.history) {
+                    HistoryView()
+                }
                 Tab("Settings", systemImage: "gearshape", value: AppTab.settings) {
                     SettingsView(appearance: $appearance)
                 }
@@ -58,6 +68,8 @@ struct RootView: View {
                 DownloadsView(onAddLink: { showsAddLink = true })
                     .tabItem { Label("Downloads", systemImage: "arrow.down.circle") }.tag(AppTab.downloads)
                     .badge(queue.activeCount)
+                HistoryView()
+                    .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }.tag(AppTab.history)
                 SettingsView(appearance: $appearance)
                     .tabItem { Label("Settings", systemImage: "gearshape") }.tag(AppTab.settings)
             }

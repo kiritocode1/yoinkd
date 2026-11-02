@@ -4,71 +4,68 @@ import YoinksCore
 @MainActor
 struct DownloadsView: View {
     @EnvironmentObject private var queue: DownloadQueue
-    @EnvironmentObject private var library: MediaLibrary
     let onAddLink: () -> Void
-    @State private var showsClearHistory = false
 
-    private var active: [DownloadJob] { queue.jobs.filter { !$0.phase.isTerminal } }
-    private var history: [DownloadJob] { queue.jobs.filter { $0.phase.isTerminal }.reversed() }
+    private var active: [DownloadJob] { queue.jobs.filter { !$0.phase.isTerminal && $0.phase != .queued } }
+    private var queued: [DownloadJob] { queue.jobs.filter { $0.phase == .queued } }
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                ScreenHeading(title: "Downloads", summary: active.isEmpty ? nil : "\(active.count) \(active.count == 1 ? "transfer" : "transfers")")
-                    .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 16)
                 if let error = queue.restoreError {
                     ContentUnavailableView {
                         Label("Downloads unavailable", systemImage: "exclamationmark.circle")
                     } description: { Text(error) } actions: {
-                        Button("Try again") { Task { await queue.restore() } }
+                        Button("Try again") { Task { await queue.restore() } }.buttonStyle(AppPrimaryButtonStyle())
                     }
-                } else if queue.jobs.isEmpty {
+                } else if !queue.isReady {
+                    ProgressView("Opening downloads...").frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if active.isEmpty && queued.isEmpty {
                     ContentUnavailableView {
-                        Label("No downloads", systemImage: "arrow.down.circle")
+                        Image(systemName: "arrow.down.circle")
+                            .font(.system(size: 32, weight: .light))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 80, height: 80)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 18).strokeBorder(Color.primary.opacity(0.08))
+                            }
+                            .shadow(color: .black.opacity(0.12), radius: 12, y: 6)
+                            .accessibilityHidden(true)
+                        Text("No active downloads")
                     } description: { Text("Add a video or audio link to save it on this iPhone.") } actions: {
-                        Button("Add link", systemImage: "link") { onAddLink() }.buttonStyle(.borderedProminent)
+                        Button("Add link", systemImage: "plus") { onAddLink() }.buttonStyle(AppPrimaryButtonStyle())
+                        Text("YouTube · Instagram · X")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .padding(.horizontal, 14).padding(.vertical, 8)
+                            .background(AppStyle.controlBackground, in: Capsule())
+                            .padding(.top, 8)
                     }
                 } else {
                     List {
                         if !active.isEmpty {
-                            Section("In progress") {
-                                ForEach(active) { DownloadRow(job: $0) }
+                            Section("Active (\(active.count))") {
+                                ForEach(active) { DownloadRow(job: $0).listRowBackground(AppStyle.surface) }
                             }
                         }
-                        if !history.isEmpty {
-                            Section("History") {
-                                ForEach(history) { job in
-                                    if job.phase == .completed, let item = try? library.item(id: job.id) {
-                                        NavigationLink { MediaDetailView(item: item) } label: { DownloadRow(job: job) }
-                                    } else {
-                                        DownloadRow(job: job, fileDeleted: job.phase == .completed)
-                                    }
-                                }
+                        if !queued.isEmpty {
+                            Section("Queued (\(queued.count))") {
+                                ForEach(queued) { DownloadRow(job: $0).listRowBackground(AppStyle.surface) }
                             }
                         }
                     }
-                    .listStyle(.plain)
+                    .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
                 }
             }
+            .background(AppStyle.background)
             .navigationTitle("Downloads")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .principal) { BrandHeader() }
-                ToolbarItem(placement: .topBarLeading) {
-                    if !history.isEmpty {
-                        Menu {
-                            Button("Clear history", systemImage: "trash") { showsClearHistory = true }
-                        } label: { Image(systemName: "ellipsis") }
-                        .accessibilityLabel("Download history actions")
-                    }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Add link", systemImage: "plus") { onAddLink() }
+                    Button("Add link", systemImage: "plus") { onAddLink() }.frame(minWidth: 44, minHeight: 44)
                 }
             }
-            .confirmationDialog("Clear download history?", isPresented: $showsClearHistory, titleVisibility: .visible) {
-                Button("Clear history", role: .destructive) { Task { await queue.clearHistory() } }
-            } message: { Text("Saved files stay in your library.") }
             .alert("Download state issue", isPresented: Binding(get: { queue.storageError != nil }, set: { if !$0 { queue.storageError = nil } })) {
                 Button("OK", role: .cancel) { queue.storageError = nil }
             } message: { Text(queue.storageError ?? "") }
