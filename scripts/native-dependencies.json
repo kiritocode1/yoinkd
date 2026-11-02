@@ -1,0 +1,34 @@
+{
+  "python": {
+    "url": "https://github.com/beeware/Python-Apple-support/releases/download/3.15-b3/Python-3.15-iOS-support.b3.tar.gz",
+    "sha256": "429080dcfab3778b75bbc6548cbfd754dc943cfc6092a92b72022541ff3212a0"
+  },
+  "ffmpeg": {
+    "url": "https://github.com/tfourj/SwiftFFmpeg-iOS/releases/download/1.2.0/SwiftFFmpeg-iOS.zip",
+    "sha256": "1ae7325a33b68f62420312aba6ec2ca700e524e3706f2ecf4d00a0705a2fcf39"
+  },
+  "quickjs": {
+    "url": "https://codeload.github.com/quickjs-ng/quickjs/tar.gz/refs/tags/v0.16.2",
+    "sha256": "97c80625b26775a4c7ca618c004d4ea24cf99cbf867e4eba78bd927a8b23d106"
+  },
+  "packages": [
+    {
+      "name": "yt-dlp",
+      "version": "2026.10.26",
+      "url": "https://files.pythonhosted.org/packages/7f/3d/16ea7d5638cf585991f2c5705e8083688dde633d32d0871f2404e0f4d827/yt_dlp-2026.10.26-py3-none-any.whl",
+      "sha256": "a05c5b5d8562f7e8a62f5334348b406af4930d56d3a65f8021d14af0e22339ae"
+    },
+    {
+      "name": "yt-dlp-ejs",
+      "version": "0.8.0",
+      "url": "https://files.pythonhosted.org/packages/e3/bd/520769863744b669440a924271a6159ddd82ad5ae26b4ac4d4b69e9f8d44/yt_dlp_ejs-0.8.0-py3-none-any.whl",
+      "sha256": "79300e5fca7f937a1eeede11f0456862c1b41107ce1d726871e0207424f4bdb4"
+    },
+    {
+      "name": "certifi",
+      "version": "2026.10.23",
+      "url": "https://files.pythonhosted.org/packages/32/d1/a3652fe2c19134d0d15922177821d863cbd7e842d53a21bbe7e8e3a1b5ac/certifi-2026.10.23-py3-none-any.whl",
+      "sha256": "e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1"
+    }
+  ]
+}

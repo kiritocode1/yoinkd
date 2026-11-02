@@ -1,0 +1,6 @@
+version: 1
+bundleID: com.maynkudu.iyoinks
+product: iYoinks
+infoPath: iYoinks/Info.plist
+iconPath: iYoinks/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+skipLSP: true

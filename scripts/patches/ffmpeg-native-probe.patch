@@ -1,0 +1,131 @@
+--- a/Sources/CFFmpegCLI/ffmpeg_wrapper.c
++++ b/Sources/CFFmpegCLI/ffmpeg_wrapper.c
+@@ -10,6 +10,9 @@
+ #include <stdatomic.h>
+ #include <errno.h>
+ #include <stdarg.h>
++#include <libavformat/avformat.h>
++#include <libavcodec/codec_id.h>
++#include <libavutil/error.h>
+ 
+ // Generated into the xcframework headers by Scripts/build/create-xcframework.sh.
+ #if __has_include(<swiftffmpeg_build_info.h>)
+@@ -24,12 +27,8 @@
+ // from fftools/ffmpeg.c compiled with -Dmain=ffmpeg_main
+ int ffmpeg_main(int argc, char *argv[]);
+ 
+-// from fftools/ffprobe.c compiled with -Dmain=ffprobe_main
+-int ffprobe_main(int argc, char *argv[]);
+-
+ // Reset FFmpeg global state for re-entrant calls
+ void ffmpeg_reset(void);
+-void ffprobe_reset(void);
+ 
+ // Set program name for library mode (from patched opt_common.c)
+ void set_library_program_name(const char *name);
+@@ -104,11 +103,48 @@
+     return ffmpeg_main(argc, argv);
+ }
+ 
++static int probe_interrupt(void *opaque) { return ffmpeg_library_cancel_requested(); }
++
++// iYoinks needs stream codecs, without linking the conflicting ffprobe CLI globals.
++static int probe_media(int argc, char *argv[], char *output, size_t capacity) {
++    if (argc != 7 || strcmp(argv[1], "-v") || strcmp(argv[2], "error") ||
++        strcmp(argv[3], "-show_streams") || strcmp(argv[4], "-of") || strcmp(argv[5], "json"))
++        return AVERROR(EINVAL);
++    AVFormatContext *context = avformat_alloc_context();
++    if (!context) return AVERROR(ENOMEM);
++    context->interrupt_callback.callback = probe_interrupt;
++    int result = avformat_open_input(&context, argv[6], NULL, NULL);
++    if (result < 0) { avformat_close_input(&context); return result; }
++    result = avformat_find_stream_info(context, NULL);
++    size_t used = 0;
++    if (result >= 0) {
++        int count = snprintf(output, capacity, "{\"streams\":[");
++        if (count < 0 || (size_t)count >= capacity) result = AVERROR(ENOSPC);
++        else used = (size_t)count;
++    }
++    for (unsigned int index = 0; result >= 0 && index < context->nb_streams; index++) {
++        const AVCodecParameters *codec = context->streams[index]->codecpar;
++        const char *type = av_get_media_type_string(codec->codec_type);
++        int count = snprintf(output + used, capacity - used,
++                             "%s{\"codec_type\":\"%s\",\"codec_name\":\"%s\"}",
++                             index ? "," : "", type ? type : "unknown", avcodec_get_name(codec->codec_id));
++        if (count < 0 || (size_t)count >= capacity - used) result = AVERROR(ENOSPC);
++        else used += (size_t)count;
++    }
++    if (result >= 0) {
++        int count = snprintf(output + used, capacity - used, "]}");
++        if (count < 0 || (size_t)count >= capacity - used) result = AVERROR(ENOSPC);
++    }
++    avformat_close_input(&context);
++    return result < 0 ? result : 0;
++}
++
+ int ffprobe_execute(int argc, char *argv[]) {
+-    ffmpeg_reset_logging();
+-    ffprobe_reset();
+-    set_library_program_name("ffprobe");
+-    return ffprobe_main(argc, argv);
++    char output[65536];
++    char error[512];
++    int result = ffprobe_execute_with_output(argc, argv, output, sizeof(output), error, sizeof(error));
++    if (!result) fputs(output, stdout);
++    return result;
+ }
+ 
+ // --- Execute with output capture ---
+@@ -291,11 +327,7 @@
+ static int execute_tool_main(int argc, char *argv[], int (*tool_main)(int, char *[]), const char *program_name) {
+     ffmpeg_reset_logging();
+     ffmpeg_clear_cancel();
+-    if (strcmp(program_name, "ffprobe") == 0) {
+-        ffprobe_reset();
+-    } else {
+-        ffmpeg_reset();
+-    }
++    ffmpeg_reset();
+     set_library_program_name(program_name);
+ 
+     int exit_code;
+@@ -460,14 +492,14 @@
+     char *stderr_buffer,
+     size_t stderr_buffer_size
+ ) {
+-    return execute_with_output_common(
+-        argc,
+-        argv,
+-        stdout_buffer,
+-        stdout_buffer_size,
+-        stderr_buffer,
+-        stderr_buffer_size,
+-        ffprobe_main,
+-        "ffprobe"
+-    );
+-}
++    pthread_mutex_lock(&g_exec_mutex);
++    ffmpeg_clear_cancel();
++    if (stderr_buffer && stderr_buffer_size) stderr_buffer[0] = '\0';
++    int result = (!stdout_buffer || !stdout_buffer_size) ? AVERROR(EINVAL)
++        : probe_media(argc, argv, stdout_buffer, stdout_buffer_size);
++    if (result < 0 && stderr_buffer && stderr_buffer_size)
++        av_strerror(result, stderr_buffer, stderr_buffer_size);
++    ffmpeg_clear_cancel();
++    pthread_mutex_unlock(&g_exec_mutex);
++    return result;
++}
+--- a/Sources/SwiftFFmpeg/SwiftFFmpeg.swift
++++ b/Sources/SwiftFFmpeg/SwiftFFmpeg.swift
+@@ -52,6 +52,11 @@
+         logHandlerLock.unlock()
+ 
+         ffmpeg_set_swift_logger(ffmpeg_log_swift)
++    }
++
++    /// Finish callbacks queued by an execution before releasing its native context.
++    public static func synchronizeLogHandler() {
++        logDispatchQueue.sync {}
+     }
+ 
+     /// Set FFmpeg log level.

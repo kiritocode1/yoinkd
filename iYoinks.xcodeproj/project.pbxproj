@@ -1,0 +1,651 @@
+// !$*UTF8*$!
+{
+	"archiveVersion" = 1;
+	"classes" = {
+	};
+	"objectVersion" = 56;
+	"objects" = {
+		"6E9B7697F38FA41689E5E7A4" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "folder.assetcatalog";
+			"path" = "iYoinks/Assets.xcassets";
+			"sourceTree" = "<group>";
+		};
+		"55CB9398F5E4C4794342BFEF" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "6E9B7697F38FA41689E5E7A4";
+		};
+		"F8A1A6B2F5542905A36D2EE2" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/App/AppAppearance.swift";
+			"sourceTree" = "<group>";
+		};
+		"B2CC42998BDFC17CEFDB008A" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "F8A1A6B2F5542905A36D2EE2";
+		};
+		"D96E11234540BF5A5C40C069" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/App/IYoinksApp.swift";
+			"sourceTree" = "<group>";
+		};
+		"643AE08906A5F37218378096" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "D96E11234540BF5A5C40C069";
+		};
+		"1430E23DF006CCFAD774A408" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/App/RootView.swift";
+			"sourceTree" = "<group>";
+		};
+		"0C01605D25D0958BBD00436B" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "1430E23DF006CCFAD774A408";
+		};
+		"A19BDCF1A6E4E932F708DF35" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Features/Capture/AddLinkView.swift";
+			"sourceTree" = "<group>";
+		};
+		"0B6A42B957D2FBB5B93BF895" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A19BDCF1A6E4E932F708DF35";
+		};
+		"841796CEBD409FE6D3AF6139" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Features/Downloads/DownloadsView.swift";
+			"sourceTree" = "<group>";
+		};
+		"47FEB30DB52F0235AA20D306" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "841796CEBD409FE6D3AF6139";
+		};
+		"1C50AE215A4F11B05E43AA5E" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Features/Library/LibraryRow.swift";
+			"sourceTree" = "<group>";
+		};
+		"0860E3FF29A09D977EF5B5BB" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "1C50AE215A4F11B05E43AA5E";
+		};
+		"149D4A9257C9CDBE4E6D30CD" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Features/Library/LibraryView.swift";
+			"sourceTree" = "<group>";
+		};
+		"43FA2016115D5270C6DB26F5" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "149D4A9257C9CDBE4E6D30CD";
+		};
+		"5A2FEAB96AFF78DF34D4CAD2" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Features/Settings/SettingsView.swift";
+			"sourceTree" = "<group>";
+		};
+		"41884CA4088CB18E4E558AE0" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "5A2FEAB96AFF78DF34D4CAD2";
+		};
+		"8C39A048061F6400DC766BCD" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Models/LibraryItem.swift";
+			"sourceTree" = "<group>";
+		};
+		"E4587855C10057F9946C4C2F" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "8C39A048061F6400DC766BCD";
+		};
+		"57015FC7E05C492A8B27CFD7" = {
+			"isa" = "PBXGroup";
+			"children" = (
+				"F8A1A6B2F5542905A36D2EE2",
+				"D96E11234540BF5A5C40C069",
+				"1430E23DF006CCFAD774A408",
+				"5EB5659FA63EBBB635842BAF",
+				"C38522D0CA9810C471A6858E",
+			);
+			"name" = "App";
+			"sourceTree" = "<group>";
+		};
+		"13E908A8A52424AD57A418B6" = {
+			"isa" = "PBXGroup";
+			"children" = (
+				"A19BDCF1A6E4E932F708DF35",
+			);
+			"name" = "Capture";
+			"sourceTree" = "<group>";
+		};
+		"E9E26CEC9740982AAFFF7072" = {
+			"isa" = "PBXGroup";
+			"children" = (
+				"841796CEBD409FE6D3AF6139",
+				"15DF9326141A082BEDBE5A8B",
+			);
+			"name" = "Downloads";
+			"sourceTree" = "<group>";
+		};
+		"6D89149C6558AA6E5BA6D08F" = {
+			"isa" = "PBXGroup";
+			"children" = (
+				"1C50AE215A4F11B05E43AA5E",
+				"149D4A9257C9CDBE4E6D30CD",
+				"4FD9EB1DF91B7808D267C655",
+				"A8BB400A89F851E61A735F8E",
+			);
+			"name" = "Library";
+			"sourceTree" = "<group>";
+		};
+		"CEBC0860B6DD81221916D2AD" = {
+			"isa" = "PBXGroup";
+			"children" = (
+				"5A2FEAB96AFF78DF34D4CAD2",
+			);
+			"name" = "Settings";
+			"sourceTree" = "<group>";
+		};
+		"91AE3C9CF29A4FD109C4AE3C" = {
+			"isa" = "PBXGroup";
+			"children" = (
+				"13E908A8A52424AD57A418B6",
+				"E9E26CEC9740982AAFFF7072",
+				"6D89149C6558AA6E5BA6D08F",
+				"CEBC0860B6DD81221916D2AD",
+			);
+			"name" = "Features";
+			"sourceTree" = "<group>";
+		};
+		"B4DD3F69CC3D684863AE23DA" = {
+			"isa" = "PBXGroup";
+			"children" = (
+				"8C39A048061F6400DC766BCD",
+			);
+			"name" = "Models";
+			"sourceTree" = "<group>";
+		};
+		"44E5F0F5EA53DB5D1B01F2FD" = {
+			"isa" = "PBXGroup";
+			"children" = (
+				"57015FC7E05C492A8B27CFD7",
+				"91AE3C9CF29A4FD109C4AE3C",
+				"B4DD3F69CC3D684863AE23DA",
+				"6E9B7697F38FA41689E5E7A4",
+				"87CBEEC512EF2784A2C2A738",
+				"24D1CA6DAAE7F1C543ECBAC4",
+			);
+			"name" = "iYoinks";
+			"sourceTree" = "<group>";
+		};
+		"A8792157CB4F27FB949C035F" = {
+			"isa" = "PBXFileReference";
+			"explicitFileType" = "wrapper.application";
+			"includeInIndex" = 0;
+			"path" = "iYoinks.app";
+			"sourceTree" = "BUILT_PRODUCTS_DIR";
+		};
+		"B9E7F2871A3402983868AFC8" = {
+			"isa" = "PBXGroup";
+			"children" = (
+				"A8792157CB4F27FB949C035F",
+			);
+			"name" = "Products";
+			"sourceTree" = "<group>";
+		};
+		"0BAB35506A9DD8220EBA656D" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "Package.swift";
+			"sourceTree" = "<group>";
+		};
+		"269A4353FEB9DF46A8D2DA05" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "folder";
+			"path" = "Packages/YoinksCore/Sources";
+			"sourceTree" = "<group>";
+		};
+		"F3100EF8350E854E7EA56F4D" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "folder";
+			"path" = "Packages/YoinksCore/Tests";
+			"sourceTree" = "<group>";
+		};
+		"711A6108BA2CE6CA93DD47D6" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "net.daringfireball.markdown";
+			"path" = "README.md";
+			"sourceTree" = "<group>";
+		};
+		"19F479106CE8C3BA8C106518" = {
+			"isa" = "PBXGroup";
+			"children" = (
+				"44E5F0F5EA53DB5D1B01F2FD",
+				"0BAB35506A9DD8220EBA656D",
+				"269A4353FEB9DF46A8D2DA05",
+				"F3100EF8350E854E7EA56F4D",
+				"711A6108BA2CE6CA93DD47D6",
+				"B9E7F2871A3402983868AFC8",
+			);
+			"sourceTree" = "<group>";
+		};
+		"4C62EC40DF63DF0873D128AE" = {
+			"isa" = "XCLocalSwiftPackageReference";
+			"relativePath" = "Packages/YoinksCore";
+		};
+		"ED3DC570B697046E1D6DC405" = {
+			"isa" = "XCSwiftPackageProductDependency";
+			"package" = "4C62EC40DF63DF0873D128AE";
+			"productName" = "YoinksCore";
+		};
+		"80BC0411D6793B6C0583B3B7" = {
+			"isa" = "PBXBuildFile";
+			"productRef" = "ED3DC570B697046E1D6DC405";
+		};
+		"D626F04DF571B9BB2451CBFE" = {
+			"isa" = "PBXSourcesBuildPhase";
+			"buildActionMask" = 2147483647;
+			"files" = (
+				"B2CC42998BDFC17CEFDB008A",
+				"643AE08906A5F37218378096",
+				"0C01605D25D0958BBD00436B",
+				"0B6A42B957D2FBB5B93BF895",
+				"47FEB30DB52F0235AA20D306",
+				"0860E3FF29A09D977EF5B5BB",
+				"43FA2016115D5270C6DB26F5",
+				"41884CA4088CB18E4E558AE0",
+				"E4587855C10057F9946C4C2F",
+				"204D3DF5FECE8AA15D75B194",
+				"8B11B8E5E1265E5BEA550FF9",
+				"0D51BA3ABD25E4D34E7CC560",
+				"4F7D3CB8840837CE2B5229FB",
+				"A12FC04FDF71C6A0F1833244",
+				"751BD65FDC26EBD7F49F93EF",
+				"7FDE50C0D52C5BE33375D5AF",
+				"CD066E3D1D7D8322F6638C5E",
+				"D9C718E1399DAACAECE0C982",
+				"FAEAB5A4712A7F5653D46736",
+				"68D0E9D67C458815004BCAD9",
+			);
+			"runOnlyForDeploymentPostprocessing" = 0;
+		};
+		"951DDECB505D289B8BC956E6" = {
+			"isa" = "PBXFrameworksBuildPhase";
+			"buildActionMask" = 2147483647;
+			"files" = (
+				"80BC0411D6793B6C0583B3B7",
+				"6F6744B569502FBBC4B30663",
+				"ABD447AA08E98E5A3011D73F",
+			);
+			"runOnlyForDeploymentPostprocessing" = 0;
+		};
+		"5C2473E515024614E403B8B9" = {
+			"isa" = "PBXResourcesBuildPhase";
+			"buildActionMask" = 2147483647;
+			"files" = (
+				"55CB9398F5E4C4794342BFEF",
+				"9AC8E109138F33F3418AC249",
+			);
+			"runOnlyForDeploymentPostprocessing" = 0;
+		};
+		"5DF0EAF287A59303D4EFEAF3" = {
+			"isa" = "XCBuildConfiguration";
+			"buildSettings" = {
+				"ALWAYS_SEARCH_USER_PATHS" = "NO";
+				"CLANG_ENABLE_MODULES" = "YES";
+				"CLANG_ENABLE_OBJC_ARC" = "YES";
+				"IPHONEOS_DEPLOYMENT_TARGET" = "17.0";
+				"SDKROOT" = "iphoneos";
+				"SWIFT_VERSION" = "6.0";
+				"DEBUG_INFORMATION_FORMAT" = "dwarf";
+				"SWIFT_OPTIMIZATION_LEVEL" = "-Onone";
+				"ENABLE_TESTABILITY" = "YES";
+				"SWIFT_ACTIVE_COMPILATION_CONDITIONS" = (
+					"DEBUG",
+					"$(inherited)",
+				);
+			};
+			"name" = "Debug";
+		};
+		"B8EB4DC6EE71CC2FBFD201B8" = {
+			"isa" = "XCBuildConfiguration";
+			"buildSettings" = {
+				"ASSETCATALOG_COMPILER_APPICON_NAME" = "AppIcon";
+				"CODE_SIGN_STYLE" = "Automatic";
+				"CURRENT_PROJECT_VERSION" = "3";
+				"ENABLE_PREVIEWS" = "YES";
+				"GENERATE_INFOPLIST_FILE" = "YES";
+				"INFOPLIST_KEY_CFBundleDisplayName" = "iYoinks";
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation" = "YES";
+				"INFOPLIST_KEY_UIApplicationSupportsMultipleScenes" = "NO";
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents" = "YES";
+				"INFOPLIST_KEY_UILaunchScreen_Generation" = "YES";
+				"INFOPLIST_KEY_UISupportedInterfaceOrientations" = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				"IPHONEOS_DEPLOYMENT_TARGET" = "17.0";
+				"LD_RUNPATH_SEARCH_PATHS" = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"MARKETING_VERSION" = "0.3.0";
+				"PRODUCT_BUNDLE_IDENTIFIER" = "com.maynkudu.iyoinks";
+				"PRODUCT_NAME" = "$(TARGET_NAME)";
+				"SUPPORTED_PLATFORMS" = "iphoneos iphonesimulator";
+				"SUPPORTS_MACCATALYST" = "NO";
+				"SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD" = "NO";
+				"SWIFT_EMIT_LOC_STRINGS" = "YES";
+				"SWIFT_VERSION" = "6.0";
+				"TARGETED_DEVICE_FAMILY" = "1";
+				"INFOPLIST_FILE" = "iYoinks/Info.plist";
+			};
+			"name" = "Debug";
+		};
+		"C62D9534737287C44FD6EF43" = {
+			"isa" = "XCBuildConfiguration";
+			"buildSettings" = {
+				"ALWAYS_SEARCH_USER_PATHS" = "NO";
+				"CLANG_ENABLE_MODULES" = "YES";
+				"CLANG_ENABLE_OBJC_ARC" = "YES";
+				"IPHONEOS_DEPLOYMENT_TARGET" = "17.0";
+				"SDKROOT" = "iphoneos";
+				"SWIFT_VERSION" = "6.0";
+				"DEBUG_INFORMATION_FORMAT" = "dwarf-with-dsym";
+				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
+				"SWIFT_COMPILATION_MODE" = "wholemodule";
+			};
+			"name" = "Release";
+		};
+		"2EF9ECCD715FED9D8FF379BE" = {
+			"isa" = "XCBuildConfiguration";
+			"buildSettings" = {
+				"ASSETCATALOG_COMPILER_APPICON_NAME" = "AppIcon";
+				"CODE_SIGN_STYLE" = "Automatic";
+				"CURRENT_PROJECT_VERSION" = "3";
+				"ENABLE_PREVIEWS" = "YES";
+				"GENERATE_INFOPLIST_FILE" = "YES";
+				"INFOPLIST_KEY_CFBundleDisplayName" = "iYoinks";
+				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation" = "YES";
+				"INFOPLIST_KEY_UIApplicationSupportsMultipleScenes" = "NO";
+				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents" = "YES";
+				"INFOPLIST_KEY_UILaunchScreen_Generation" = "YES";
+				"INFOPLIST_KEY_UISupportedInterfaceOrientations" = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				"IPHONEOS_DEPLOYMENT_TARGET" = "17.0";
+				"LD_RUNPATH_SEARCH_PATHS" = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				"MARKETING_VERSION" = "0.3.0";
+				"PRODUCT_BUNDLE_IDENTIFIER" = "com.maynkudu.iyoinks";
+				"PRODUCT_NAME" = "$(TARGET_NAME)";
+				"SUPPORTED_PLATFORMS" = "iphoneos iphonesimulator";
+				"SUPPORTS_MACCATALYST" = "NO";
+				"SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD" = "NO";
+				"SWIFT_EMIT_LOC_STRINGS" = "YES";
+				"SWIFT_VERSION" = "6.0";
+				"TARGETED_DEVICE_FAMILY" = "1";
+				"INFOPLIST_FILE" = "iYoinks/Info.plist";
+			};
+			"name" = "Release";
+		};
+		"7ED5184A5487DF185E3420D0" = {
+			"isa" = "XCConfigurationList";
+			"buildConfigurations" = (
+				"5DF0EAF287A59303D4EFEAF3",
+				"C62D9534737287C44FD6EF43",
+			);
+			"defaultConfigurationIsVisible" = 0;
+			"defaultConfigurationName" = "Release";
+		};
+		"82A58AF6F77EDCFC78A65DA6" = {
+			"isa" = "XCConfigurationList";
+			"buildConfigurations" = (
+				"B8EB4DC6EE71CC2FBFD201B8",
+				"2EF9ECCD715FED9D8FF379BE",
+			);
+			"defaultConfigurationIsVisible" = 0;
+			"defaultConfigurationName" = "Release";
+		};
+		"34A04005BCAF206EEC990BD9" = {
+			"isa" = "PBXNativeTarget";
+			"buildConfigurationList" = "82A58AF6F77EDCFC78A65DA6";
+			"buildPhases" = (
+				"D626F04DF571B9BB2451CBFE",
+				"951DDECB505D289B8BC956E6",
+				"5C2473E515024614E403B8B9",
+				"59AC33B32ED20948B8449457",
+			);
+			"buildRules" = (
+			);
+			"dependencies" = (
+			);
+			"name" = "iYoinks";
+			"packageProductDependencies" = (
+				"ED3DC570B697046E1D6DC405",
+				"E351F681FD2C7CD448730130",
+				"2E0C79A294CC7095D1571780",
+			);
+			"productName" = "iYoinks";
+			"productReference" = "A8792157CB4F27FB949C035F";
+			"productType" = "com.apple.product-type.application";
+		};
+		"244210E48437B6556980A702" = {
+			"isa" = "PBXProject";
+			"attributes" = {
+				"BuildIndependentTargetsInParallel" = "YES";
+				"LastSwiftUpdateCheck" = "2600";
+				"LastUpgradeCheck" = "2600";
+				"TargetAttributes" = {
+					"34A04005BCAF206EEC990BD9" = {
+						"CreatedOnToolsVersion" = "26.0";
+					};
+				};
+			};
+			"buildConfigurationList" = "7ED5184A5487DF185E3420D0";
+			"compatibilityVersion" = "Xcode 14.0";
+			"developmentRegion" = "en";
+			"hasScannedForEncodings" = 0;
+			"knownRegions" = (
+				"en",
+				"Base",
+			);
+			"mainGroup" = "19F479106CE8C3BA8C106518";
+			"packageReferences" = (
+				"4C62EC40DF63DF0873D128AE",
+				"B0B72B3E2E31330ACED69877",
+				"BB0AAE83B57F9D20C0B00165",
+			);
+			"productRefGroup" = "B9E7F2871A3402983868AFC8";
+			"projectDirPath" = "";
+			"projectRoot" = "";
+			"targets" = (
+				"34A04005BCAF206EEC990BD9",
+			);
+		};
+		"87CBEEC512EF2784A2C2A738" = {
+			"isa" = "PBXGroup";
+			"children" = (
+				"093AADE11D0A024D07B1BD45",
+				"7E42D7D6D95F4D1F58A6EB91",
+				"06BD7F8D53432A9D279B340E",
+				"2F53ADFEF4E04FD443D06F8E",
+				"88C3B54E9AF101FD08959C3B",
+				"9372E44855C69AA0A31F6730",
+			);
+			"name" = "Services";
+			"sourceTree" = "<group>";
+		};
+		"5EB5659FA63EBBB635842BAF" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/App/AppBrand.swift";
+			"sourceTree" = "<group>";
+		};
+		"204D3DF5FECE8AA15D75B194" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "5EB5659FA63EBBB635842BAF";
+		};
+		"C38522D0CA9810C471A6858E" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/App/IYoinksAppDelegate.swift";
+			"sourceTree" = "<group>";
+		};
+		"8B11B8E5E1265E5BEA550FF9" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "C38522D0CA9810C471A6858E";
+		};
+		"15DF9326141A082BEDBE5A8B" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Features/Downloads/DownloadRow.swift";
+			"sourceTree" = "<group>";
+		};
+		"0D51BA3ABD25E4D34E7CC560" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "15DF9326141A082BEDBE5A8B";
+		};
+		"4FD9EB1DF91B7808D267C655" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Features/Library/MediaDetailView.swift";
+			"sourceTree" = "<group>";
+		};
+		"4F7D3CB8840837CE2B5229FB" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "4FD9EB1DF91B7808D267C655";
+		};
+		"A8BB400A89F851E61A735F8E" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Features/Library/MediaPresentation.swift";
+			"sourceTree" = "<group>";
+		};
+		"A12FC04FDF71C6A0F1833244" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A8BB400A89F851E61A735F8E";
+		};
+		"093AADE11D0A024D07B1BD45" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Services/BackgroundDownloadDelegate.swift";
+			"sourceTree" = "<group>";
+		};
+		"751BD65FDC26EBD7F49F93EF" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "093AADE11D0A024D07B1BD45";
+		};
+		"7E42D7D6D95F4D1F58A6EB91" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Services/DownloadQueue.swift";
+			"sourceTree" = "<group>";
+		};
+		"7FDE50C0D52C5BE33375D5AF" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "7E42D7D6D95F4D1F58A6EB91";
+		};
+		"06BD7F8D53432A9D279B340E" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Services/MediaLibrary.swift";
+			"sourceTree" = "<group>";
+		};
+		"CD066E3D1D7D8322F6638C5E" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "06BD7F8D53432A9D279B340E";
+		};
+		"2F53ADFEF4E04FD443D06F8E" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Services/MediaStorage.swift";
+			"sourceTree" = "<group>";
+		};
+		"D9C718E1399DAACAECE0C982" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "2F53ADFEF4E04FD443D06F8E";
+		};
+		"24D1CA6DAAE7F1C543ECBAC4" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "folder";
+			"path" = "iYoinks/Resources";
+			"sourceTree" = "<group>";
+		};
+		"9AC8E109138F33F3418AC249" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "24D1CA6DAAE7F1C543ECBAC4";
+		};
+		"88C3B54E9AF101FD08959C3B" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Services/NativeExtractor.swift";
+			"sourceTree" = "<group>";
+		};
+		"FAEAB5A4712A7F5653D46736" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "88C3B54E9AF101FD08959C3B";
+		};
+		"9372E44855C69AA0A31F6730" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Services/SourceBackgroundWork.swift";
+			"sourceTree" = "<group>";
+		};
+		"68D0E9D67C458815004BCAD9" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "9372E44855C69AA0A31F6730";
+		};
+		"B0B72B3E2E31330ACED69877" = {
+			"isa" = "XCLocalSwiftPackageReference";
+			"relativePath" = "Packages/YoinksExtractor";
+		};
+		"E351F681FD2C7CD448730130" = {
+			"isa" = "XCSwiftPackageProductDependency";
+			"package" = "B0B72B3E2E31330ACED69877";
+			"productName" = "ExtractorBridge";
+		};
+		"6F6744B569502FBBC4B30663" = {
+			"isa" = "PBXBuildFile";
+			"productRef" = "E351F681FD2C7CD448730130";
+		};
+		"BB0AAE83B57F9D20C0B00165" = {
+			"isa" = "XCLocalSwiftPackageReference";
+			"relativePath" = "Vendor/SwiftFFmpeg-iOS";
+		};
+		"2E0C79A294CC7095D1571780" = {
+			"isa" = "XCSwiftPackageProductDependency";
+			"package" = "BB0AAE83B57F9D20C0B00165";
+			"productName" = "SwiftFFmpeg";
+		};
+		"ABD447AA08E98E5A3011D73F" = {
+			"isa" = "PBXBuildFile";
+			"productRef" = "2E0C79A294CC7095D1571780";
+		};
+		"59AC33B32ED20948B8449457" = {
+			"isa" = "PBXShellScriptBuildPhase";
+			"buildActionMask" = 2147483647;
+			"files" = (
+			);
+			"inputPaths" = (
+				"$(SRCROOT)/scripts/package-python.py",
+				"$(SRCROOT)/Packages/YoinksExtractor/Vendor/Python.xcframework",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Resources",
+			);
+			"outputPaths" = (
+				"$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Resources/Python/lib/python3.15",
+			);
+			"name" = "Package Python runtime";
+			"runOnlyForDeploymentPostprocessing" = 0;
+			"shellPath" = "/bin/sh";
+			"shellScript" = "set -e\nruntime_arch=\"${CURRENT_ARCH:-arm64}\"\nif [ \"$runtime_arch\" = \"undefined_arch\" ]; then\n    case \"${ARCHS:-arm64}\" in\n        *arm64*) runtime_arch=arm64 ;;\n        *) runtime_arch=x86_64 ;;\n    esac\nfi\npython3 \"$SRCROOT/scripts/package-python.py\" --app \"$TARGET_BUILD_DIR/$WRAPPER_NAME\" --sdk \"$PLATFORM_NAME\" --arch \"$runtime_arch\"\nif [ \"${CODE_SIGNING_ALLOWED:-NO}\" = \"YES\" ] && [ -n \"${EXPANDED_CODE_SIGN_IDENTITY:-}\" ]; then\n    for framework in \"$TARGET_BUILD_DIR/$WRAPPER_NAME\"/Frameworks/py[0-9][0-9][0-9].framework \"$TARGET_BUILD_DIR/$WRAPPER_NAME/Frameworks/Python.framework\"; do\n        /usr/bin/codesign --force --sign \"$EXPANDED_CODE_SIGN_IDENTITY\" --timestamp=none \"$framework\"\n    done\nfi\n";
+			"alwaysOutOfDate" = 1;
+		};
+	};
+	"rootObject" = "244210E48437B6556980A702";
+}
