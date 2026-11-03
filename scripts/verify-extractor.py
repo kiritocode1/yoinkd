@@ -27,6 +27,7 @@ sys.dont_write_bytecode = True
 
 PROJECT = Path(__file__).resolve().parent.parent
 EXTRACTOR = PROJECT / "iYoinks/Resources/Extractor"
+CONTRACT = PROJECT / "Packages/YoinksCore/Tests/YoinksCoreTests/Fixtures/source-media.json"
 HOST_PACKAGES = Path(os.environ.get("YOINKD_HOST_PACKAGES", PROJECT / ".cache/native-dependencies/host-packages"))
 
 
@@ -322,6 +323,18 @@ class ExtractorTests(unittest.TestCase):
         self.add_format("audio", "audio.webm")
         value = engine.metadata(self.info, "https://example.com/media")
         self.assertEqual([item["id"] for item in value["formats"]], ["240", "720-h264", "720-vp9", "audio"])
+
+    def test_inspect_output_matches_the_swift_decoding_fixture(self):
+        # SourceMediaTests decodes the same file, so renaming a key on either side fails a test.
+        # After an intended change, write `value` to CONTRACT and update the Swift model with it.
+        info = {"id": "contract", "title": "Contract fixture", "extractor_key": "Fixture", "uploader": "Fixture channel",
+                "artist": "Fixture artist", "duration": 61.5, "thumbnail": "https://example.com/cover.jpg",
+                "formats": [{"format_id": "137", "url": "https://example.com/v", "ext": "mp4", "protocol": "https",
+                             "vcodec": "avc1.640028", "acodec": "mp4a.40.2", "width": 1920, "height": 1080, "fps": 30,
+                             "abr": 128, "tbr": 4500, "vbr": 4372, "asr": 44100, "audio_channels": 2,
+                             "filesize": 34_000_000, "language": "en", "dynamic_range": "SDR", "format_note": "1080p"}]}
+        value = engine.metadata(info, "https://example.com/media")
+        self.assertEqual(value, json.loads(CONTRACT.read_text()))
 
     def test_combined_audio_remains_selectable_when_audio_only_exists(self):
         self.add_format("combined", "combined.mp4", video=True)

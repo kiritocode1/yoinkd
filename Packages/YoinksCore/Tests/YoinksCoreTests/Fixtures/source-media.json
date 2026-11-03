@@ -1,0 +1,33 @@
+{
+  "id": "contract",
+  "sourceURL": "https://example.com/media",
+  "title": "Contract fixture",
+  "platform": "Fixture",
+  "uploader": "Fixture channel",
+  "artist": "Fixture artist",
+  "duration": 61.5,
+  "thumbnailURL": "https://example.com/cover.jpg",
+  "formats": [
+    {
+      "id": "137",
+      "container": "mp4",
+      "videoCodec": "avc1.640028",
+      "audioCodec": "mp4a.40.2",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "audioBitrate": 128,
+      "bitrate": 4500,
+      "byteCount": 34000000,
+      "sizeIsEstimate": false,
+      "rank": 0,
+      "audioChannels": 2,
+      "language": "en",
+      "audioSampleRate": 44100,
+      "videoBitrate": 4372,
+      "dynamicRange": "SDR",
+      "formatNote": "1080p",
+      "protocolName": "https"
+    }
+  ]
+}

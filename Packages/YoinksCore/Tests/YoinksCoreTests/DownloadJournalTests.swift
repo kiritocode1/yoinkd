@@ -1,10 +1,9 @@
 import Foundation
-import XCTest
+import Testing
 @testable import YoinksCore
 
-@MainActor
-final class DownloadJournalTests: XCTestCase {
-    func testRestoresPausedJobAndRejectsAnOlderSnapshot() async throws {
+struct DownloadJournalTests {
+    @Test func restoresPausedJobAndRejectsAnOlderSnapshot() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let url = root.appendingPathComponent("queue.json")
@@ -18,26 +17,84 @@ final class DownloadJournalTests: XCTestCase {
         try await journal.save(DownloadSnapshot(revision: 1, jobs: []))
         let reopened = DownloadJournal(url: url)
         let restored = try await reopened.load()
-        XCTAssertEqual(restored.jobs, [job])
-        XCTAssertEqual(restored.jobs.first?.progress?.fractionCompleted, 0.5)
+        #expect(restored.jobs == [job])
+        #expect(restored.jobs.first?.progress?.fractionCompleted == 0.5)
     }
 
-    func testCorruptQueueIsReportedWithoutOverwritingItsContents() async throws {
+    @Test func corruptQueueIsReportedWithoutOverwritingItsContents() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let url = root.appendingPathComponent("queue.json")
         let corrupt = Data("not JSON".utf8)
         try corrupt.write(to: url)
-        do {
-            _ = try await DownloadJournal(url: url).load()
-            XCTFail("Corrupt queue was accepted")
-        } catch {
-            XCTAssertEqual(try Data(contentsOf: url), corrupt)
-        }
+        await #expect(throws: (any Error).self) { try await DownloadJournal(url: url).load() }
+        #expect(try Data(contentsOf: url) == corrupt)
     }
 
-    func testDecodingCannotTurnARelativeFilenameIntoAnAbsolutePath() {
-        XCTAssertThrowsError(try JSONDecoder().decode(MediaFileName.self, from: Data("\"../outside.mp4\"".utf8)))
+    @Test func oneBadJobIsDroppedWithoutLosingTheRestOfTheQueue() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("queue.json")
+        let good = DownloadJob(link: try MediaLink("https://example.com/good.mp4"))
+        let goodJSON = String(decoding: try JSONEncoder().encode(good), as: UTF8.self)
+        func entry(_ id: String, url: String = "https://example.com/v.mp4", phase: String = "queued", extra: String = "") -> String {
+            #"{"id":"\#(id)","sourceURL":"\#(url)","createdAt":0,"title":"Bad","phase":"\#(phase)","receivedBytes":0\#(extra)}"#
+        }
+        let jobs = [
+            goodJSON,
+            entry(UUID().uuidString, phase: "unknownPhase"),
+            entry(UUID().uuidString, url: "http://example.com/insecure.mp4"),
+            entry(UUID().uuidString, phase: "completed"),
+            entry(UUID().uuidString, extra: #","expectedBytes":0"#),
+            entry(good.id.uuidString)
+        ]
+        let original = Data(#"{"version":1,"revision":7,"jobs":[\#(jobs.joined(separator: ","))]}"#.utf8)
+        try original.write(to: url)
+
+        let journal = DownloadJournal(url: url)
+        let restored = try await journal.load()
+        #expect(restored.jobs == [good])
+        #expect(restored.discardedJobCount == 5)
+        #expect(restored.revision == 7)
+
+        // The queue saves right after restoring; the dropped entries must survive that save.
+        try await journal.save(DownloadSnapshot(revision: 8, jobs: restored.jobs))
+        #expect(try Data(contentsOf: journal.discardedURL) == original)
+    }
+
+    @Test func failedBackupKeepsTheOriginalJournalAndRefusesToLoad() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("queue.json")
+        let original = Data(#"{"version":1,"revision":1,"jobs":[{"id":"bad"}]}"#.utf8)
+        try original.write(to: url)
+        let journal = DownloadJournal(url: url)
+        // A directory where the backup file belongs makes the backup write fail.
+        try FileManager.default.createDirectory(at: journal.discardedURL, withIntermediateDirectories: true)
+
+        await #expect(throws: (any Error).self) { try await journal.load() }
+        #expect(try Data(contentsOf: url) == original)
+    }
+
+    @Test func unknownJournalVersionIsStillRejected() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("queue.json")
+        try Data(#"{"version":2,"revision":1,"jobs":[]}"#.utf8).write(to: url)
+        await #expect(throws: (any Error).self) { try await DownloadJournal(url: url).load() }
+    }
+
+    @Test func discardedCountIsNotWrittenBack() throws {
+        let encoded = try JSONEncoder().encode(DownloadSnapshot(revision: 1, jobs: []))
+        let object = try #require(try JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        #expect(Set(object.keys) == ["version", "revision", "jobs"])
+    }
+
+    @Test func decodingCannotTurnARelativeFilenameIntoAnAbsolutePath() {
+        #expect(throws: (any Error).self) { try JSONDecoder().decode(MediaFileName.self, from: Data("\"../outside.mp4\"".utf8)) }
     }
 }

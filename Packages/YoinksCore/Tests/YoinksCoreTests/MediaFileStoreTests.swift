@@ -1,19 +1,20 @@
 import Foundation
-import XCTest
+import Testing
 @testable import YoinksCore
 
-final class MediaFileStoreTests: XCTestCase {
-    private var directory: URL!
-    private var files: MediaFileStore!
+/// A class so `deinit` can remove each test's temporary directory.
+final class MediaFileStoreTests {
+    private let directory: URL
+    private var files: MediaFileStore
     private let contents = Data([0, 0, 0, 24, 102, 116, 121, 112, 109, 112, 52, 50])
 
-    override func setUpWithError() throws {
+    init() throws {
         directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         files = MediaFileStore(root: directory.appendingPathComponent("Library"))
         try files.prepareDirectories()
     }
 
-    override func tearDownWithError() throws { try FileManager.default.removeItem(at: directory) }
+    deinit { try? FileManager.default.removeItem(at: directory) }
 
     private func stage(move: Bool = false) throws -> StagedMedia {
         let input = directory.appendingPathComponent("input.mp4")
@@ -28,176 +29,176 @@ final class MediaFileStoreTests: XCTestCase {
         return pending
     }
 
-    func testDownloadedTemporaryFileIsMovedAndRecoverableBeforeReturning() throws {
+    @Test func downloadedTemporaryFileIsMovedAndRecoverableBeforeReturning() throws {
         let staged = try stage(move: true)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("input.mp4").path))
-        let restored = try XCTUnwrap(files.stagedMedia().first)
-        XCTAssertEqual(restored.id, staged.id)
-        XCTAssertEqual(try Data(contentsOf: files.stagedURL(restored)), contents)
+        #expect(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("input.mp4").path))
+        let restored = try #require(files.stagedMedia().first)
+        #expect(restored.id == staged.id)
+        #expect(try Data(contentsOf: files.stagedURL(restored)) == contents)
     }
 
-    func testImportKeepsTheOriginalAndRollbackPreservesAllBytesForRetry() throws {
+    @Test func importKeepsTheOriginalAndRollbackPreservesAllBytesForRetry() throws {
         let staged = try stage()
         let pending = try commit(staged)
-        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("input.mp4")), contents)
+        #expect(try Data(contentsOf: directory.appendingPathComponent("input.mp4")) == contents)
         try files.rollbackCommit(pending)
-        XCTAssertEqual(try Data(contentsOf: files.stagedURL(staged)), contents)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: files.mediaURL(pending.storedFile).path))
-        XCTAssertNil(try files.details(id: staged.id))
+        #expect(try Data(contentsOf: files.stagedURL(staged)) == contents)
+        #expect(!FileManager.default.fileExists(atPath: files.mediaURL(pending.storedFile).path))
+        #expect(try files.details(id: staged.id) == nil)
     }
 
-    func testAnInterruptedCommitCanFinishAfterReopeningStorage() throws {
+    @Test func anInterruptedCommitCanFinishAfterReopeningStorage() throws {
         let pending = try commit(stage())
         let reopened = MediaFileStore(root: files.root)
-        let recovered = try XCTUnwrap(reopened.pendingMedia().first)
+        let recovered = try #require(reopened.pendingMedia().first)
         try reopened.commitFile(recovered)
         try reopened.finishCommit(recovered)
-        XCTAssertEqual(try Data(contentsOf: reopened.mediaURL(pending.storedFile)), contents)
-        XCTAssertEqual(try reopened.details(id: pending.staged.id)?.duration, 12)
-        XCTAssertTrue(try reopened.pendingMedia().isEmpty)
+        #expect(try Data(contentsOf: reopened.mediaURL(pending.storedFile)) == contents)
+        #expect(try reopened.details(id: pending.staged.id)?.duration == 12)
+        #expect(try reopened.pendingMedia().isEmpty)
     }
 
-    func testInterruptedDeletionCanRestoreTheFileWhenMetadataStillExists() throws {
+    @Test func interruptedDeletionCanRestoreTheFileWhenMetadataStillExists() throws {
         let pending = try commit(stage())
         try files.finishCommit(pending)
         _ = try files.stageDeletion(id: pending.staged.id, file: pending.storedFile)
         let reopened = MediaFileStore(root: files.root)
-        let deletion = try XCTUnwrap(reopened.pendingDeletions().first)
+        let deletion = try #require(reopened.pendingDeletions().first)
         try reopened.restoreDeletion(deletion)
-        XCTAssertEqual(try Data(contentsOf: reopened.mediaURL(pending.storedFile)), contents)
-        XCTAssertNotNil(try reopened.details(id: pending.staged.id))
+        #expect(try Data(contentsOf: reopened.mediaURL(pending.storedFile)) == contents)
+        #expect(try reopened.details(id: pending.staged.id) != nil)
     }
 
-    func testConfirmedDeletionRemovesMediaAndDetailsWithoutTouchingTheImportSource() throws {
+    @Test func confirmedDeletionRemovesMediaAndDetailsWithoutTouchingTheImportSource() throws {
         let pending = try commit(stage())
         let deletion = try files.stageDeletion(id: pending.staged.id, file: pending.storedFile)
         try files.finishDeletion(deletion)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: files.mediaURL(pending.storedFile).path))
-        XCTAssertNil(try files.details(id: pending.staged.id))
-        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("input.mp4")), contents)
+        #expect(!FileManager.default.fileExists(atPath: files.mediaURL(pending.storedFile).path))
+        #expect(try files.details(id: pending.staged.id) == nil)
+        #expect(try Data(contentsOf: directory.appendingPathComponent("input.mp4")) == contents)
     }
 
-    func testCleanupAndRetryPreserveAFileAwaitingMetadataRecovery() throws {
+    @Test func cleanupAndRetryPreserveAFileAwaitingMetadataRecovery() throws {
         let pending = try commit(stage())
         try files.discard(pending.staged)
         let source = directory.appendingPathComponent("new.mp4")
         try Data([1, 2, 3]).write(to: source)
         let retry = try files.stage(from: source, id: pending.staged.id, operationID: UUID(), originalName: "new.mp4", move: false)
-        XCTAssertThrowsError(try files.prepareCommit(retry, title: "Retry", details: pending.details))
-        let recovered = try XCTUnwrap(files.pendingMedia().first)
-        XCTAssertEqual(recovered.staged.operationID, pending.staged.operationID)
-        XCTAssertEqual(try Data(contentsOf: files.mediaURL(recovered.storedFile)), contents)
+        #expect(throws: (any Error).self) { try self.files.prepareCommit(retry, title: "Retry", details: pending.details) }
+        let recovered = try #require(files.pendingMedia().first)
+        #expect(recovered.staged.operationID == pending.staged.operationID)
+        #expect(try Data(contentsOf: files.mediaURL(recovered.storedFile)) == contents)
     }
 
-    func testTruncatedImportIsRejectedBeforeMediaInspection() throws {
+    @Test func truncatedImportIsRejectedBeforeMediaInspection() throws {
         let staged = try stage()
-        XCTAssertEqual(try files.validateStagedFile(staged), Int64(contents.count))
+        #expect(try files.validateStagedFile(staged) == Int64(contents.count))
         try Data(contents.prefix(4)).write(to: files.stagedURL(staged))
-        XCTAssertThrowsError(try files.validateStagedFile(staged))
-        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("input.mp4")), contents)
+        #expect(throws: (any Error).self) { try self.files.validateStagedFile(staged) }
+        #expect(try Data(contentsOf: directory.appendingPathComponent("input.mp4")) == contents)
     }
 
-    func testVisibleMediaDirectoryKeepsJournalAndMetadataPrivate() throws {
+    @Test func visibleMediaDirectoryKeepsJournalAndMetadataPrivate() throws {
         let visible = directory.appendingPathComponent("Documents", isDirectory: true)
         files = MediaFileStore(root: files.root, mediaDirectory: visible)
         let pending = try commit(stage())
-        XCTAssertEqual(files.mediaURL(pending.storedFile).deletingLastPathComponent(), visible)
-        XCTAssertTrue(files.queueURL.path.hasPrefix(files.root.path))
-        XCTAssertTrue(files.thumbnailURL(id: pending.staged.id).path.hasPrefix(files.root.path))
-        XCTAssertEqual(try Data(contentsOf: files.mediaURL(pending.storedFile)), contents)
+        #expect(files.mediaURL(pending.storedFile).deletingLastPathComponent() == visible)
+        #expect(files.queueURL.path.hasPrefix(files.root.path))
+        #expect(files.thumbnailURL(id: pending.staged.id).path.hasPrefix(files.root.path))
+        #expect(try Data(contentsOf: files.mediaURL(pending.storedFile)) == contents)
         let deletion = try files.stageDeletion(id: pending.staged.id, file: pending.storedFile)
         try files.restoreDeletion(deletion)
-        XCTAssertEqual(try Data(contentsOf: files.mediaURL(pending.storedFile)), contents)
+        #expect(try Data(contentsOf: files.mediaURL(pending.storedFile)) == contents)
     }
 
-    func testRelocationVerifiesCopiesAndNeverMovesUnmanagedFiles() throws {
+    @Test func relocationVerifiesCopiesAndNeverMovesUnmanagedFiles() throws {
         let pending = try commit(stage())
         let unrelated = files.mediaDirectory.appendingPathComponent("notes.txt")
         try Data("Keep me".utf8).write(to: unrelated)
         let destination = directory.appendingPathComponent("Chosen folder")
         let relocation = try files.prepareRelocation(to: destination)
-        XCTAssertEqual(relocation.files, [pending.storedFile])
-        XCTAssertEqual(try Data(contentsOf: files.mediaURL(pending.storedFile)), contents)
+        #expect(relocation.files == [pending.storedFile])
+        #expect(try Data(contentsOf: files.mediaURL(pending.storedFile)) == contents)
         let moved = MediaFileStore(root: files.root, mediaDirectory: destination)
-        XCTAssertEqual(try Data(contentsOf: moved.mediaURL(pending.storedFile)), contents)
+        #expect(try Data(contentsOf: moved.mediaURL(pending.storedFile)) == contents)
         try files.finishRelocation(relocation)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: files.mediaURL(pending.storedFile).path))
-        XCTAssertTrue(FileManager.default.fileExists(atPath: unrelated.path))
-        XCTAssertEqual(try moved.details(id: pending.staged.id)?.duration, 12)
+        #expect(!FileManager.default.fileExists(atPath: files.mediaURL(pending.storedFile).path))
+        #expect(FileManager.default.fileExists(atPath: unrelated.path))
+        #expect(try moved.details(id: pending.staged.id)?.duration == 12)
     }
 
-    func testFailedDestinationActivationCanRollbackWithoutDeletingExistingFiles() throws {
+    @Test func failedDestinationActivationCanRollbackWithoutDeletingExistingFiles() throws {
         let pending = try commit(stage())
         let destination = directory.appendingPathComponent("Chosen folder")
         let relocation = try files.prepareRelocation(to: destination)
         try files.rollbackRelocation(relocation)
-        XCTAssertEqual(try Data(contentsOf: files.mediaURL(pending.storedFile)), contents)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.appendingPathComponent(pending.storedFile.value).path))
+        #expect(try Data(contentsOf: files.mediaURL(pending.storedFile)) == contents)
+        #expect(!FileManager.default.fileExists(atPath: destination.appendingPathComponent(pending.storedFile.value).path))
         let preexisting = try files.prepareRelocation(to: destination)
         let repeated = try files.prepareRelocation(to: destination)
-        XCTAssertTrue(repeated.createdFiles.isEmpty)
+        #expect(repeated.createdFiles.isEmpty)
         try files.rollbackRelocation(repeated)
-        XCTAssertEqual(try Data(contentsOf: destination.appendingPathComponent(pending.storedFile.value)), contents)
+        #expect(try Data(contentsOf: destination.appendingPathComponent(pending.storedFile.value)) == contents)
         try files.rollbackRelocation(preexisting)
     }
 
-    func testDestinationCollisionLeavesBothExistingFilesIntact() throws {
+    @Test func destinationCollisionLeavesBothExistingFilesIntact() throws {
         let pending = try commit(stage())
         let destination = directory.appendingPathComponent("Chosen folder")
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
         let target = destination.appendingPathComponent(pending.storedFile.value)
         let other = Data("Different contents".utf8)
         try other.write(to: target)
-        XCTAssertThrowsError(try files.prepareRelocation(to: destination))
-        XCTAssertEqual(try Data(contentsOf: files.mediaURL(pending.storedFile)), contents)
-        XCTAssertEqual(try Data(contentsOf: target), other)
+        #expect(throws: (any Error).self) { try self.files.prepareRelocation(to: destination) }
+        #expect(try Data(contentsOf: files.mediaURL(pending.storedFile)) == contents)
+        #expect(try Data(contentsOf: target) == other)
     }
 
-    func testLegacyDetailsDecodeWithoutArtist() throws {
+    @Test func legacyDetailsDecodeWithoutArtist() throws {
         let data = Data(#"{"kind":"audio","duration":30,"byteCount":200,"originalName":"old.flac"}"#.utf8)
         let details = try JSONDecoder().decode(MediaDetails.self, from: data)
-        XCTAssertNil(details.artist)
-        XCTAssertEqual(details.kind, .audio)
+        #expect(details.artist == nil)
+        #expect(details.kind == .audio)
     }
 
-    func testAliasedDestinationDoesNotDeleteItsOwnMedia() throws {
+    @Test func aliasedDestinationDoesNotDeleteItsOwnMedia() throws {
         let pending = try commit(stage())
         let alias = directory.appendingPathComponent("Alias", isDirectory: true)
         try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: files.mediaDirectory)
         let relocation = try files.prepareRelocation(to: alias)
-        XCTAssertTrue(relocation.files.isEmpty)
+        #expect(relocation.files.isEmpty)
         try files.finishRelocation(relocation)
-        XCTAssertEqual(try Data(contentsOf: files.mediaURL(pending.storedFile)), contents)
+        #expect(try Data(contentsOf: files.mediaURL(pending.storedFile)) == contents)
     }
 
-    func testDestinationSymlinkCannotBecomeABrokenSavedFile() throws {
+    @Test func destinationSymlinkCannotBecomeABrokenSavedFile() throws {
         let pending = try commit(stage())
         let destination = directory.appendingPathComponent("Chosen folder", isDirectory: true)
         try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
         let target = destination.appendingPathComponent(pending.storedFile.value)
         try FileManager.default.createSymbolicLink(at: target, withDestinationURL: files.mediaURL(pending.storedFile))
-        XCTAssertThrowsError(try files.prepareRelocation(to: destination))
-        XCTAssertEqual(try Data(contentsOf: files.mediaURL(pending.storedFile)), contents)
-        XCTAssertEqual(try Data(contentsOf: target), contents)
+        #expect(throws: (any Error).self) { try self.files.prepareRelocation(to: destination) }
+        #expect(try Data(contentsOf: files.mediaURL(pending.storedFile)) == contents)
+        #expect(try Data(contentsOf: target) == contents)
     }
 
     #if os(Linux)
-    func testSaveRollbackAndDeletionAcrossVolumesKeepAllBytes() throws {
-        let sharedMemory = URL(fileURLWithPath: "/dev/shm", isDirectory: true)
-        guard FileManager.default.isWritableFile(atPath: sharedMemory.path) else { throw XCTSkip("No second writable filesystem") }
-        let destination = sharedMemory.appendingPathComponent("yoinkd-\(UUID().uuidString)", isDirectory: true)
+    @Test(.enabled(if: FileManager.default.isWritableFile(atPath: "/dev/shm"), "Needs a second writable filesystem"))
+    func saveRollbackAndDeletionAcrossVolumesKeepAllBytes() throws {
+        let destination = URL(fileURLWithPath: "/dev/shm", isDirectory: true)
+            .appendingPathComponent("yoinkd-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: destination) }
         files = MediaFileStore(root: files.root, mediaDirectory: destination)
         let staged = try stage()
         let pending = try commit(staged)
-        XCTAssertEqual(try Data(contentsOf: files.mediaURL(pending.storedFile)), contents)
+        #expect(try Data(contentsOf: files.mediaURL(pending.storedFile)) == contents)
         try files.rollbackCommit(pending)
-        XCTAssertEqual(try Data(contentsOf: files.stagedURL(staged)), contents)
+        #expect(try Data(contentsOf: files.stagedURL(staged)) == contents)
         let retried = try commit(staged)
         let deletion = try files.stageDeletion(id: retried.staged.id, file: retried.storedFile)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: files.mediaURL(retried.storedFile).path))
+        #expect(!FileManager.default.fileExists(atPath: files.mediaURL(retried.storedFile).path))
         try files.restoreDeletion(deletion)
-        XCTAssertEqual(try Data(contentsOf: files.mediaURL(retried.storedFile)), contents)
+        #expect(try Data(contentsOf: files.mediaURL(retried.storedFile)) == contents)
     }
     #endif
 }
