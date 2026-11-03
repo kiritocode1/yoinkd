@@ -225,7 +225,13 @@ private enum NativeMediaProcessor {
                 SwiftFFmpeg.setLogHandler(nil)
                 SwiftFFmpeg.synchronizeLogHandler()
             }
-            let arguments = request.tool == "ffmpeg" ? ["-progress", "pipe:2", "-nostats"] + request.args : request.args
+            // FFmpeg opens -progress while parsing options by duplicating fd 2, and closes it only after a
+            // transcode. A run that never transcodes (-encoders, -muxers) leaves that duplicate open. In
+            // process, fd 2 is the wrapper's capture pipe at that moment, so the wrapper waits forever for
+            // the pipe to close and holds the media lock. Only media runs pass a duration, and only they
+            // can report progress against it.
+            let reportsProgress = request.tool == "ffmpeg" && request.duration != nil
+            let arguments = reportsProgress ? ["-progress", "pipe:2", "-nostats"] + request.args : request.args
             let result = try SwiftFFmpeg.executeDetailed(arguments, tool: request.tool == "ffprobe" ? .ffprobe : .ffmpeg)
             response = Response(exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr)
         } catch let SwiftFFmpegError.executionFailed(code, stdout, stderr) {
