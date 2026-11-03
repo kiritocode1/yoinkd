@@ -707,7 +707,7 @@
 		"24D1CA6DAAE7F1C543ECBAC4" = {
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "folder";
-			"path" = "iYoinks/Resources";
+			"path" = "iYoinks/AppResources";
 			"sourceTree" = "<group>";
 		};
 		"9AC8E109138F33F3418AC249" = {
@@ -768,11 +768,11 @@
 			"inputPaths" = (
 				"$(SRCROOT)/scripts/package-python.py",
 				"$(SRCROOT)/Packages/YoinksExtractor/Vendor/Python.xcframework",
-				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Resources",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AppResources",
 			);
 			"outputPaths" = (
 				"$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)",
-				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Resources/Python/lib/python3.15",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/AppResources/Python/lib/python3.15",
 			);
 			"name" = "Package Python runtime";
 			"runOnlyForDeploymentPostprocessing" = 0;

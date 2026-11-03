@@ -42,7 +42,7 @@ let package = Package(
             dependencies: [.product(name: "YoinksCore", package: "YoinksCore"), .product(name: "ExtractorBridge", package: "YoinksExtractor"), .product(name: "SwiftFFmpeg", package: "SwiftFFmpeg-iOS")],
             path: "iYoinks",
             exclude: ["Info.plist", "Assets.xcassets"],
-            resources: [.copy("Resources")],
+            resources: [.copy("AppResources")],
             linkerSettings: xtoolLinkerSettings
         )
     ]

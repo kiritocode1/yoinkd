@@ -18,7 +18,7 @@ import zipfile
 
 sys.dont_write_bytecode = True
 PROJECT = Path(__file__).resolve().parent.parent
-HELPER = PROJECT / "iYoinks/Resources/Extractor/iyoinks_dependencies.py"
+HELPER = PROJECT / "iYoinks/AppResources/Extractor/iyoinks_dependencies.py"
 # macOS extension modules resolve Python symbols when the interpreter loads them.
 HOST_LINK_FLAGS = ["-undefined", "dynamic_lookup"] if sys.platform == "darwin" else []
 

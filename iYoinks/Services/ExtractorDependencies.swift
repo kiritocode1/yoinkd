@@ -274,7 +274,7 @@ private actor DependencyInstaller {
         #else
         let bundle = Bundle.main
         #endif
-        guard let base = bundle.url(forResource: "Resources", withExtension: nil) else {
+        guard let base = bundle.url(forResource: "AppResources", withExtension: nil) else {
             throw ExtractorDependencyError(message: "The bundled extraction runtime is missing. Reinstall the app.")
         }
         let home = base.appendingPathComponent("Python").path
@@ -373,7 +373,7 @@ private actor DependencyInstaller {
         #else
         let bundle = Bundle.main
         #endif
-        guard let resources = bundle.url(forResource: "Resources", withExtension: nil) else {
+        guard let resources = bundle.url(forResource: "AppResources", withExtension: nil) else {
             throw ExtractorDependencyError(message: "The baseline dependency manifest is missing.")
         }
         let path = resources.appendingPathComponent("Extractor/dependencies.json")

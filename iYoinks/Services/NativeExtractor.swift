@@ -99,7 +99,7 @@ enum NativeExtractor {
         #else
         let bundle = Bundle.main
         #endif
-        guard let resources = bundle.url(forResource: "Resources", withExtension: nil),
+        guard let resources = bundle.url(forResource: "AppResources", withExtension: nil),
               let executable = Bundle.main.executablePath else { throw ExtractorError.unavailable }
         let home = resources.appendingPathComponent("Python").path
         let packages = resources.appendingPathComponent("Extractor").path

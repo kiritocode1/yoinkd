@@ -25,7 +25,7 @@ enum AppPlatformArtwork {
         #else
         let bundle = Bundle.main
         #endif
-        guard let url = bundle.url(forResource: name, withExtension: "pdf", subdirectory: "Resources/PlatformLogos"),
+        guard let url = bundle.url(forResource: name, withExtension: "pdf", subdirectory: "AppResources/PlatformLogos"),
               let document = CGPDFDocument(url as CFURL), let page = document.page(at: 1) else { return nil }
         let bounds = page.getBoxRect(.mediaBox)
         guard bounds.width > 0, bounds.height > 0 else { return nil }

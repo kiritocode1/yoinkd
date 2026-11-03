@@ -186,9 +186,9 @@ def check():
     assert alternate_set["images"] == [dict(light_entry, filename="AppIconDark.png")]
     assert (alternate_path / "AppIconDark.png").read_bytes() == dark_data
     for name in ("BrandMark.png", "BrandMarkLight.png"):
-        PACKAGE_ICONS.check_png((ROOT / "iYoinks/Resources" / name).read_bytes(), 512)
-    assert (ROOT / "iYoinks/Resources/BrandMarkLight.png").read_bytes() != (ROOT / "iYoinks/Resources/BrandMark.png").read_bytes()
-    assert hashlib.sha256((ROOT / "iYoinks/Resources/BrandMark.png").read_bytes()).hexdigest() == "13c247c6f3a23bff4a5c33d6830b3442dc585b2b498c1edc0bd52d50cc6952c5", "Original dark brand changed"
+        PACKAGE_ICONS.check_png((ROOT / "iYoinks/AppResources" / name).read_bytes(), 512)
+    assert (ROOT / "iYoinks/AppResources/BrandMarkLight.png").read_bytes() != (ROOT / "iYoinks/AppResources/BrandMark.png").read_bytes()
+    assert hashlib.sha256((ROOT / "iYoinks/AppResources/BrandMark.png").read_bytes()).hexdigest() == "13c247c6f3a23bff4a5c33d6830b3442dc585b2b498c1edc0bd52d50cc6952c5", "Original dark brand changed"
     resources = next(phase for phase in phases if phase["isa"] == "PBXResourcesBuildPhase")
     resource_files = [objects[objects[identifier]["fileRef"]] for identifier in resources["files"]]
     assert any(
@@ -196,10 +196,10 @@ def check():
         for obj in resource_files
     )
     assert any(
-        obj["lastKnownFileType"] == "folder" and obj["path"] == "iYoinks/Resources"
+        obj["lastKnownFileType"] == "folder" and obj["path"] == "iYoinks/AppResources"
         for obj in resource_files
-    ), "Register the Resources folder for both brand images in Xcode"
-    extractor = ROOT / "iYoinks/Resources/Extractor"
+    ), "Register the AppResources folder for both brand images in Xcode"
+    extractor = ROOT / "iYoinks/AppResources/Extractor"
     assert (extractor / "iyoinks_dependencies.py").is_file()
     baseline = json.loads((extractor / "dependencies.json").read_text())
     assert baseline["adapter"] == 1

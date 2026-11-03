@@ -15,7 +15,7 @@ enum AppBrand {
         #else
         let bundle = Bundle.main
         #endif
-        if let url = bundle.url(forResource: name, withExtension: "png", subdirectory: "Resources"),
+        if let url = bundle.url(forResource: name, withExtension: "png", subdirectory: "AppResources"),
            let image = UIImage(contentsOfFile: url.path) {
             return Image(uiImage: image)
         }

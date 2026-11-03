@@ -27,7 +27,7 @@ from unittest.mock import Mock, patch
 sys.dont_write_bytecode = True
 
 PROJECT = Path(__file__).resolve().parent.parent
-EXTRACTOR = PROJECT / "iYoinks/Resources/Extractor"
+EXTRACTOR = PROJECT / "iYoinks/AppResources/Extractor"
 CONTRACT = PROJECT / "Packages/YoinksCore/Tests/YoinksCoreTests/Fixtures/source-media.json"
 # macOS extension modules resolve Python symbols when the interpreter loads them.
 HOST_LINK_FLAGS = ["-undefined", "dynamic_lookup"] if sys.platform == "darwin" else []
