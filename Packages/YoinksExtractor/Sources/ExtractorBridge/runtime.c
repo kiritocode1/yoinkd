@@ -1,5 +1,6 @@
 #include "ExtractorBridge.h"
-#if defined(__APPLE__)
+/* The iOS build uses Python.xcframework headers; host test builds use the interpreter's include path. */
+#if __has_include(<Python/Python.h>)
 #include <Python/Python.h>
 #else
 #include <Python.h>

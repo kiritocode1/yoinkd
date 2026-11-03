@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host-tests:
+    name: Core, dependency and extractor tests
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Cache pinned native dependencies
+        uses: actions/cache@v4
+        with:
+          path: .cache/native-dependencies
+          key: native-${{ hashFiles('scripts/native-dependencies.json', 'scripts/prepare-native.py', 'scripts/patches/*') }}
+      - name: Prepare native dependencies
+        run: python scripts/prepare-native.py
+      - name: Install FFmpeg
+        run: brew list ffmpeg >/dev/null 2>&1 || brew install ffmpeg
+      - name: YoinksCore tests
+        run: swift test --package-path Packages/YoinksCore
+      - name: Dependency helper tests
+        run: python scripts/verify-dependencies.py
+      - name: Extractor tests
+        run: python scripts/verify-extractor.py

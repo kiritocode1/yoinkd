@@ -1,0 +1,15 @@
+[
+  {"site": "YouTube", "url": "https://www.youtube.com/watch?v=aqz-KE-bpKQ", "download": "audio"},
+  {"site": "YouTube old", "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw", "download": "video"},
+  {"site": "Instagram", "url": "https://www.instagram.com/reel/Chunk8-jurw/"},
+  {"site": "X", "url": "https://x.com/TopHeroes_/status/2001950365332455490", "download": "video"},
+  {"site": "SoundCloud", "url": "https://soundcloud.com/forss/flickermood"},
+  {"site": "Bandcamp", "url": "https://youtube-dl.bandcamp.com/track/youtube-dl-test-song"},
+  {"site": "Vimeo", "url": "https://player.vimeo.com/video/76979871"},
+  {"site": "Twitch", "url": "https://clips.twitch.tv/FaintLightGullWholeWheat"},
+  {"site": "Streamable", "url": "https://streamable.com/dnd1"},
+  {"site": "TikTok", "url": "https://www.tiktok.com/@scout2015/video/6718335390845095173",
+   "known_issue": "Fails in yt-dlp 2026.10.26 itself, even with curl_cffi impersonation (requests chrome-152, curl_cffi offers chrome-136)."},
+  {"site": "Reddit", "url": "https://www.reddit.com/r/videos/comments/6rrwyj/that_small_heart_attack/",
+   "known_issue": "Reddit asks for sign-in. Needs cookie support (Phase 4)."}
+]

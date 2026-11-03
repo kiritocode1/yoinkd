@@ -19,6 +19,8 @@ import zipfile
 sys.dont_write_bytecode = True
 PROJECT = Path(__file__).resolve().parent.parent
 HELPER = PROJECT / "iYoinks/Resources/Extractor/iyoinks_dependencies.py"
+# macOS extension modules resolve Python symbols when the interpreter loads them.
+HOST_LINK_FLAGS = ["-undefined", "dynamic_lookup"] if sys.platform == "darwin" else []
 
 
 class DependencyTests(unittest.TestCase):
@@ -30,7 +32,7 @@ class DependencyTests(unittest.TestCase):
         output = Path(cls.native_temporary.name) / "dependency-control.so"
         subprocess.run(["cc", "-shared", "-fPIC", "-O0", "-std=c11", "-D_GNU_SOURCE", "-DQUICKJS_NG_BUILD",
                         "-I" + sysconfig.get_path("include"), "-I" + str(sources / "QuickJS"),
-                        "-I" + str(sources / "ExtractorBridge/include"), *map(str, files), "-lm", "-lpthread", "-o", str(output)], check=True)
+                        "-I" + str(sources / "ExtractorBridge/include"), *map(str, files), "-lm", "-lpthread", *HOST_LINK_FLAGS, "-o", str(output)], check=True)
         cls.bridge = ctypes.CDLL(str(output))
         cls.bridge.iy_dependency_call.argtypes = [ctypes.c_char_p] * 4
         cls.bridge.iy_dependency_call.restype = ctypes.c_void_p

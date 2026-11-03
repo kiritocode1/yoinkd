@@ -15,6 +15,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import sysconfig
@@ -28,6 +29,20 @@ sys.dont_write_bytecode = True
 PROJECT = Path(__file__).resolve().parent.parent
 EXTRACTOR = PROJECT / "iYoinks/Resources/Extractor"
 CONTRACT = PROJECT / "Packages/YoinksCore/Tests/YoinksCoreTests/Fixtures/source-media.json"
+# macOS extension modules resolve Python symbols when the interpreter loads them.
+HOST_LINK_FLAGS = ["-undefined", "dynamic_lookup"] if sys.platform == "darwin" else []
+
+
+def ffmpeg_flags():
+    """Compiler and linker flags for the host FFmpeg libraries, from pkg-config or Homebrew."""
+    libraries = ["libavformat", "libavcodec", "libavutil"]
+    if shutil.which("pkg-config"):
+        return subprocess.run(["pkg-config", "--cflags", "--libs", *libraries],
+                              check=True, capture_output=True, text=True).stdout.split()
+    if shutil.which("brew"):
+        prefix = subprocess.run(["brew", "--prefix", "ffmpeg"], check=True, capture_output=True, text=True).stdout.strip()
+        return [f"-I{prefix}/include", f"-L{prefix}/lib", *(f"-l{name[3:]}" for name in libraries)]
+    raise RuntimeError("Install pkg-config or Homebrew FFmpeg to build the host native probe.")
 HOST_PACKAGES = Path(os.environ.get("YOINKD_HOST_PACKAGES", PROJECT / ".cache/native-dependencies/host-packages"))
 
 
@@ -44,7 +59,7 @@ def load_native():
         subprocess.run(["cc", "-shared", "-fPIC", "-O2", "-std=c11", "-D_GNU_SOURCE", "-DQUICKJS_NG_BUILD",
                         "-I" + sysconfig.get_path("include"), "-I" + str(sources / "QuickJS"),
                         "-I" + str(sources / "ExtractorBridge/include"), *map(str, files),
-                        "-lm", "-lpthread", "-o", str(output)], check=True)
+                        "-lm", "-lpthread", *HOST_LINK_FLAGS, "-o", str(output)], check=True)
         stamp.write_text(digest)
     sys.path[:0] = [str(directory), str(EXTRACTOR), str(HOST_PACKAGES)]
     return importlib.import_module("_iy_native")
@@ -69,8 +84,7 @@ int main(int argc, char *argv[]) {
     path = directory / "probe.c"
     path.write_text(source)
     executable = directory / "probe"
-    flags = subprocess.run(["pkg-config", "--cflags", "--libs", "libavformat", "libavcodec", "libavutil"],
-                           check=True, capture_output=True, text=True).stdout.split()
+    flags = ffmpeg_flags()
     subprocess.run(["cc", "-std=c11", "-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter",
                     str(path), *flags, "-o", str(executable)], check=True)
     return executable
