@@ -66,7 +66,7 @@ def check(path):
         names = set(archive.namelist())
         assert len(names) == len(archive.namelist()), "Duplicate IPA entries"
         info = plistlib.loads(archive.read(prefix + "Info.plist"))
-        for key in ("CFBundleDisplayName", "CFBundleName", "CFBundleShortVersionString", "CFBundleVersion", "MinimumOSVersion", "BGTaskSchedulerPermittedIdentifiers", "UIBackgroundModes", "UIFileSharingEnabled", "LSSupportsOpeningDocumentsInPlace"):
+        for key in ("CFBundleDisplayName", "CFBundleName", "CFBundleShortVersionString", "CFBundleVersion", "MinimumOSVersion", "BGTaskSchedulerPermittedIdentifiers", "UIBackgroundModes", "UIFileSharingEnabled", "LSSupportsOpeningDocumentsInPlace", "CFBundleURLTypes"):
             assert info[key] == source_info[key], key
         assert info["CFBundleIdentifier"] == "com.maynkudu.iyoinks"
         assert info["CFBundlePackageType"] == "APPL"

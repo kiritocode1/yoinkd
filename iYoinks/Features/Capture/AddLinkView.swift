@@ -9,7 +9,9 @@ struct AddLinkView: View {
     @EnvironmentObject private var theme: AppTheme
     @EnvironmentObject private var library: MediaLibrary
     let onEnqueued: () -> Void
-    @State private var input = ""
+    /// The kind a `yoinkd://add` link asked for. Used after the check if the source offers it.
+    private let requestedKind: MediaKind?
+    @State private var input: String
     @State private var errorMessage: String?
     @State private var isAdding = false
     @State private var isChecking = false
@@ -23,6 +25,12 @@ struct AddLinkView: View {
     @State private var checkID = UUID()
     @State private var linkControlSize = CGSize(width: 80, height: 44)
     @FocusState private var isLinkFocused: Bool
+
+    init(request: CaptureRequest, onEnqueued: @escaping () -> Void) {
+        self.onEnqueued = onEnqueued
+        requestedKind = request.kind
+        _input = State(initialValue: request.link)
+    }
 
     var body: some View {
         NavigationStack {
@@ -63,7 +71,7 @@ struct AddLinkView: View {
             }
         }
         .interactiveDismissDisabled(isAdding)
-        .task { isLinkFocused = true }
+        .task { isLinkFocused = input.isEmpty }
         .task(id: kind) {
             do {
                 let formats = try await NativeExtractor.availableOutputFormats(for: kind)
@@ -342,7 +350,9 @@ struct AddLinkView: View {
                     guard !Task.isCancelled, checkID == requestID else { return }
                     media = result
                     theme.previewArtwork(url: result.thumbnailURL, id: result.sourceURL.absoluteString)
-                    kind = result.videoFormats.isEmpty ? .audio : .video
+                    let offered = availableKinds(result)
+                    kind = requestedKind.flatMap { offered.contains($0) ? $0 : nil }
+                        ?? (result.videoFormats.isEmpty ? .audio : .video)
                     formatID = ""
                 } catch {
                     guard !Task.isCancelled, checkID == requestID else { return }
