@@ -105,7 +105,7 @@ private struct AppToolbarSearch: ViewModifier {
     }
 
     private var cancelControl: AppSearchCancellation {
-        AppSearchCancellation(isPresented: $isPresented) {
+        AppSearchCancellation(text: $text, isPresented: $isPresented) {
             focused = false
             text = ""
             isPresented = false
@@ -116,6 +116,7 @@ private struct AppToolbarSearch: ViewModifier {
 
 @MainActor
 private struct AppSearchCancellation: ViewModifier {
+    @Binding var text: String
     @Binding var isPresented: Bool
     let cancel: () -> Void
 
@@ -130,6 +131,9 @@ private struct AppSearchCancellation: ViewModifier {
             }
             .onChange(of: isPresented) { _, presented in
                 if !presented { cancel() }
+            }
+            .onChange(of: text) { previous, current in
+                if isPresented, !previous.isEmpty, current.isEmpty { cancel() }
             }
     }
 }
@@ -251,8 +255,11 @@ private struct AppTabContent: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .transaction(value: isEntering) { transaction in
+                transaction.animation = nil
+            }
             .scaleEffect(isEntering ? 0.985 : 1)
-            .opacity(isEntering ? 0.94 : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.24), value: isEntering)
             .task(id: transition) {
                 resetEntry()
                 guard transition.selected == tab, transition.generation != enteredGeneration else { return }
@@ -265,7 +272,7 @@ private struct AppTabContent: ViewModifier {
                 guard !reduceMotion else { return }
                 do { try await Task.sleep(for: .milliseconds(16)) } catch { return }
                 guard !Task.isCancelled, !reduceMotion else { return }
-                withAnimation(.easeOut(duration: 0.24)) { entered = true }
+                entered = true
             }
             .onChange(of: reduceMotion) { _, reduced in
                 if reduced { enteredGeneration = transition.generation; resetEntry() }

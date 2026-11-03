@@ -238,6 +238,7 @@ def unpack_wheel(entry, wheel, destination):
             raise ValueError("The downloaded wheel checksum does not match release metadata.")
     module = MODULES[entry["name"]]
     metadata = module + "-" + entry["version"] + ".dist-info"
+    share_parts = (module + "-" + entry["version"] + ".data", "data", "share")
     with zipfile.ZipFile(wheel) as archive:
         items = archive.infolist()
         if len(items) > MAX_ENTRIES or sum(item.file_size for item in items) > MAX_EXPANDED:
@@ -245,7 +246,9 @@ def unpack_wheel(entry, wheel, destination):
         seen = set()
         for item in items:
             target = safe_target(destination, item.filename)
-            if item.filename in seen or item.filename.split("/")[0] not in (module, metadata):
+            parts = PurePosixPath(item.filename).parts
+            ancillary = parts[:3] == share_parts or (item.is_dir() and share_parts[:len(parts)] == parts)
+            if item.filename in seen or (parts[0] not in (module, metadata) and not ancillary):
                 raise ValueError("The wheel contains duplicate files or unexpected modules.")
             seen.add(item.filename)
             mode = item.external_attr >> 16
@@ -254,7 +257,8 @@ def unpack_wheel(entry, wheel, destination):
             if item.file_size > MAX_WHEEL or item.file_size / max(1, item.compress_size) > 500:
                 raise ValueError("The package exceeds its expanded file limit.")
             if item.is_dir():
-                target.mkdir(parents=True, exist_ok=True)
+                if not ancillary:
+                    target.mkdir(parents=True, exist_ok=True)
                 continue
             if target.suffix.lower() in (".so", ".dylib", ".dll", ".exe", ".a", ".o", ".pth", ".fwork", ".pyc", ".pyo") or any(part.endswith(".framework") for part in target.parts):
                 raise ValueError("Downloaded native code and import hooks are not allowed.")
@@ -262,6 +266,8 @@ def unpack_wheel(entry, wheel, destination):
             if payload[:4] in (b"\x7fELF", b"\xcf\xfa\xed\xfe", b"\xfe\xed\xfa\xcf", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xce",
                                b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca", b"\xca\xfe\xba\xbf", b"\xbf\xba\xfe\xca") or payload[:2] == b"MZ":
                 raise ValueError("The wheel contains a native executable payload.")
+            if ancillary:
+                continue
             target.parent.mkdir(parents=True, exist_ok=True)
             with target.open("xb") as output:
                 output.write(payload)

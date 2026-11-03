@@ -36,6 +36,11 @@ def package_app(app, project, sdk, arch):
     if len(resources) != 1:
         raise ValueError("The app must contain exactly one bundled extractor.")
     resource_root = resources[0].parent.parent
+    for cache in list(resource_root.rglob("__pycache__")):
+        if cache.is_dir(): shutil.rmtree(cache)
+    for pattern in ("*.pyc", "*.pyo"):
+        for bytecode in resource_root.rglob(pattern):
+            if bytecode.is_file(): bytecode.unlink()
     extractor = resource_root / "Extractor"
     for name in ("iyoinks_dependencies.py", "dependencies.json"):
         if not (extractor / name).is_file():

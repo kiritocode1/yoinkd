@@ -21,6 +21,7 @@ struct AddLinkView: View {
     @State private var outputAvailabilityError: String?
     @State private var checkTask: Task<Void, Never>?
     @State private var checkID = UUID()
+    @State private var linkControlSize = CGSize(width: 80, height: 44)
     @FocusState private var isLinkFocused: Bool
 
     var body: some View {
@@ -28,10 +29,12 @@ struct AddLinkView: View {
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
+                        linkInput
                         if let media {
                             formatSections(media)
-                        } else {
-                            linkInput
+                        }
+                        if !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            captureAction
                         }
                         if isChecking {
                             HStack(spacing: 12) { ProgressView(); Text("Checking source").font(AppTypography.font(.body)) }
@@ -56,14 +59,6 @@ struct AddLinkView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel Download") { dismiss() }.disabled(isAdding)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    if isAdding || isChecking {
-                        ProgressView()
-                    } else if !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        Button(media != nil || isDirectFile ? "yoink!" : "Check link") { performAction() }
-                            .disabled(!queue.isReady || library.isChangingFolder)
-                    }
                 }
             }
         }
@@ -90,20 +85,42 @@ struct AddLinkView: View {
     }
 
     private var linkInput: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 10) {
-                Image(systemName: "link").foregroundStyle(theme.secondaryText).accessibilityHidden(true)
-                linkField
-                pasteControl
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                linkField
-                pasteControl
-            }
+        HStack(spacing: 10) {
+            Image(systemName: "link").foregroundStyle(theme.secondaryText).accessibilityHidden(true)
+            linkField
+                .mask {
+                    HStack(spacing: 0) {
+                        Rectangle().fill(.black)
+                        LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                            .frame(width: isLinkFocused && !input.isEmpty ? 0 : 16)
+                    }
+                }
+                .padding(.trailing, linkControlSize.width + 8)
+        }
+        .overlay(alignment: .trailing) {
+            linkControl
+                .fixedSize()
+                .onGeometryChange(for: CGSize.self) { geometry in
+                    geometry.size
+                } action: { size in
+                    linkControlSize = size
+                }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .background(theme.controlBackground, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var captureAction: some View {
+        HStack(spacing: 12) {
+            Spacer(minLength: 0)
+            if isAdding {
+                ProgressView().accessibilityLabel("Adding download")
+            }
+            Button(media != nil || isDirectFile ? "yoink!" : "Check link") { performAction() }
+                .buttonStyle(AppSecondaryButtonStyle())
+                .disabled(isAdding || isChecking || !queue.isReady || library.isChangingFolder)
+        }
     }
 
     private var linkField: some View {
@@ -115,10 +132,26 @@ struct AddLinkView: View {
             .autocorrectionDisabled()
             .focused($isLinkFocused)
             .submitLabel(.go)
-            .frame(minHeight: 44)
+            .frame(minWidth: 0, minHeight: max(44, linkControlSize.height))
             .disabled(isAdding)
             .onChange(of: input) { _, _ in resetInspection() }
             .onSubmit { performAction() }
+    }
+
+    @ViewBuilder
+    private var linkControl: some View {
+        if input.isEmpty {
+            pasteControl
+        } else {
+            Button("Clear link", systemImage: "xmark") {
+                input = ""
+                isLinkFocused = true
+            }
+            .labelStyle(.iconOnly)
+            .buttonStyle(AppCompactButtonStyle())
+            .frame(minWidth: 44, minHeight: 44)
+            .disabled(isAdding)
+        }
     }
 
     private var pasteControl: some View {

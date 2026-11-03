@@ -20,6 +20,7 @@ struct MediaDetailView: View {
     @State private var isDeleting = false
     @State private var isScrubbing = false
     @State private var seekTime = 0.0
+    @ScaledMetric(relativeTo: .headline) private var actionLabelHeight: CGFloat = 44
 
     private var isRemoved: Bool { item.isDeleted || item.managedObjectContext == nil }
     private var isAudio: Bool { item.mediaKind == .audio }
@@ -33,6 +34,17 @@ struct MediaDetailView: View {
             if isRemoved { ProgressView() }
             else if isAudio { audioPlayer }
             else { videoPlayer }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !isRemoved {
+                mediaActions
+                    .frame(maxWidth: 462)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
+                    .background(theme.background)
+            }
         }
         .foregroundStyle(theme.primaryText)
         .background(theme.background)
@@ -72,17 +84,19 @@ struct MediaDetailView: View {
 
     private var audioPlayer: some View {
         GeometryReader { geometry in
-            let artworkSize = max(1, min(geometry.size.width - 52, geometry.size.height * 0.48, 410))
+            let availableHeight = max(1, geometry.size.height - geometry.safeAreaInsets.top - geometry.safeAreaInsets.bottom)
+            let availableWidth = geometry.size.width - geometry.safeAreaInsets.leading - geometry.safeAreaInsets.trailing - 40
+            let artworkSize = max(1, min(availableWidth, availableHeight * 0.42, 360))
             ScrollView {
-                VStack(alignment: .leading, spacing: 26) {
+                VStack(alignment: .leading, spacing: 18) {
                     MediaThumbnail(id: item.id, kind: .audio)
                         .frame(width: artworkSize, height: artworkSize)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .frame(maxWidth: .infinity)
                     VStack(alignment: .leading, spacing: 5) {
                         Text(item.title).font(AppTypography.font(.title2, weight: .semibold))
-                            .lineLimit(3).textSelection(.enabled)
-                        Text(artist).font(AppTypography.font(.title3)).foregroundStyle(theme.secondaryText)
+                            .lineLimit(2).textSelection(.enabled)
+                        Text(artist).font(AppTypography.font(.subheadline)).foregroundStyle(theme.secondaryText)
                     }
                     if let error = playback.error { playbackFailure(error) }
                     else if playback.player == nil {
@@ -91,13 +105,12 @@ struct MediaDetailView: View {
                         audioControls
                         SystemVolumeSlider().frame(height: 44)
                     }
-                    mediaActions
                 }
                 .frame(maxWidth: 462)
                 .frame(maxWidth: .infinity)
-                .padding(.horizontal, 26)
-                .padding(.top, 24)
-                .padding(.bottom, 30)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 16)
             }
             .background {
                 LinearGradient(colors: [theme.surface, theme.background], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
@@ -106,7 +119,7 @@ struct MediaDetailView: View {
     }
 
     private var audioControls: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 16) {
             VStack(spacing: 3) {
                 Slider(value: $seekTime, in: 0...max(playback.duration, 1)) { editing in
                     isScrubbing = editing
@@ -163,7 +176,6 @@ struct MediaDetailView: View {
                     Text("\(MediaPresentation.duration(details.duration)) · \(MediaPresentation.bytes(details.byteCount))")
                         .font(AppTypography.font(.subheadline)).foregroundStyle(theme.secondaryText)
                 }
-                mediaActions
             }
             .padding(20)
         }
@@ -171,19 +183,27 @@ struct MediaDetailView: View {
 
     private var mediaActions: some View {
         HStack(spacing: 18) {
-            Button("Info", systemImage: "info.circle") { showsInfo = true }
-                .font(AppTypography.font(.headline))
-                .frame(maxWidth: .infinity, minHeight: 52)
-                .buttonStyle(AppSecondaryButtonStyle())
+            Button { showsInfo = true } label: {
+                mediaActionLabel("Info", symbol: "info.circle")
+            }
+            .buttonStyle(AppSecondaryButtonStyle())
             if let fileURL = playback.fileURL {
                 ShareLink(item: SharedMedia(url: fileURL, title: item.title, kind: item.mediaKind ?? .video), preview: SharePreview(item.title)) {
-                    Label("Share", systemImage: "square.and.arrow.up")
-                        .font(AppTypography.font(.headline))
-                        .frame(maxWidth: .infinity, minHeight: 52)
+                    mediaActionLabel("Share", symbol: "square.and.arrow.up")
                 }
                 .buttonStyle(AppSecondaryButtonStyle())
             }
         }
+        .controlSize(.regular)
+    }
+
+    private func mediaActionLabel(_ title: String, symbol: String) -> some View {
+        Label(title, systemImage: symbol)
+            .labelStyle(.titleAndIcon)
+            .font(AppTypography.font(.headline))
+            .lineLimit(1)
+            .frame(minWidth: 0, maxWidth: .infinity)
+            .frame(height: actionLabelHeight)
     }
 
     private func playbackFailure(_ error: String) -> some View {

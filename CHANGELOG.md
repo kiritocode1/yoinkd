@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.1, build 7
+
+- Fix first installation of the unmodified official yt-dlp wheel. Validate and omit its desktop share documentation without allowing extra import roots, scripts, native payloads or unsafe archive entries.
+- Replace repacked-wheel activation fixtures with the original pinned official downloads. Add first-install and ancillary-data safety coverage.
+- Strip generated Python bytecode caches during packaging so local validation cannot leak incompatible cache files into the IPA.
+- Show per-package working state as soon as Get starts and retain errors beside the affected package. Make Check for updates and Update all independent native Form buttons.
+- Close Library and History search when the query is cleared, restoring the heading and controls without a second Cancel tap.
+- Limit tab transition animation to a small scale change, keeping text and layout out of the animation transaction.
+- Add persistent History sort, Grid/List display and All/Video/Audio filters while preserving retry, removal and clear actions.
+- Keep `yoink!` and Cancel Download at the capture drawer's top. Move Check link below the URL field and Download below its options. Replace trailing Paste with X for nonempty input and protect text beneath the overlay.
+- Match Info and Share button sizing across audio and video. Use a two-line audio title, compact artwork/spacing and a bottom safe-area action row.
+- Keep the phone's display name `yoink'd` and existing internal executable/bundle identifiers. Copied crash reports are from 0.3.0 build 3; they do not establish a crash in this release.
+
 ## 0.5.0, build 6
 
 ### Controls and appearance

@@ -68,6 +68,7 @@ struct DependencyUpdatesSection: View {
                 .disabled(!dependencies.packages.contains(where: \.canUpdate))
             }
             .font(AppTypography.font(.subheadline, weight: .medium))
+            .buttonStyle(.borderless)
             .disabled(dependencies.isUpdating)
             if let status = dependencies.status {
                 Text(status)

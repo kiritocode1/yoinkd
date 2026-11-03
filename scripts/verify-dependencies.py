@@ -107,6 +107,62 @@ class DependencyTests(unittest.TestCase):
         self.assertIsNotNone(result["manifest"])
         self.assertFalse({"yt_dlp", "yt_dlp_ejs", "certifi"} & (set(sys.modules) - before))
 
+    def official_wheels(self):
+        entries = json.loads((HELPER.parent / "dependencies.json").read_text())["packages"]
+        host = Path(os.environ.get("YOINKD_HOST_PACKAGES", PROJECT / ".cache/native-dependencies/host-packages"))
+        cache = Path(os.environ.get("YOINKD_WHEEL_CACHE", host.parent))
+        for entry in entries:
+            wheel = cache / entry["url"].rsplit("/", 1)[1]
+            self.assertTrue(wheel.is_file(), "Prepare the original official wheels before verification")
+            payload = wheel.read_bytes()
+            self.assertEqual(len(payload), entry["size"])
+            self.assertEqual(hashlib.sha256(payload).hexdigest(), entry["sha256"])
+            (self.root / "downloads" / (entry["sha256"] + ".whl")).write_bytes(payload)
+        return entries
+
+    def test_original_official_wheels_install_without_repacking(self):
+        entries = self.official_wheels()
+        result = self.call("install", entries=entries)
+        self.assertTrue(result["ok"], result.get("error"))
+        manifest = result["result"]["manifest"]
+        self.assertEqual(manifest["packages"], entries)
+        self.assertFalse(any(".data/" in name for name in manifest["files"]))
+        self.assertIsNotNone(self.helper.configure(self.root)["path"])
+
+    def test_desktop_share_data_is_validated_but_not_installed(self):
+        prefix = "yt_dlp-2026.10.26.data/data/share/"
+        entry = self.wheel("yt-dlp", "2026.10.26", {prefix + "doc/yt_dlp/README.txt": "documentation"})
+        result = self.install([entry, *self.wheels()[1:]])
+        self.assertFalse(any(".data/" in name for name in result["manifest"]["files"]))
+        packages = self.helper.generation_path(self.root, result["manifest"]["generation"]) / "packages"
+        self.assertFalse((packages / "yt_dlp-2026.10.26.data").exists())
+
+    def test_desktop_data_cannot_install_import_roots_or_native_payloads(self):
+        prefix = "yt_dlp-2026.10.26.data/"
+        for name, value in ((prefix + "purelib/hook.py", "import hook"),
+                            (prefix + "platlib/native.so", b"native"),
+                            (prefix + "scripts/yt-dlp", "script"),
+                            (prefix + "data/share/hook.pth", "import hook"),
+                            (prefix + "data/share/native", b"\x7fELFpayload"),
+                            (prefix + "data/share/../escape", "unsafe")):
+            with self.subTest(name=name):
+                entry = self.wheel("yt-dlp", "2026.10.26", {name: value})
+                with self.assertRaises(ValueError):
+                    self.install([entry, *self.wheels()[1:]])
+
+    def test_desktop_share_symlinks_and_size_limits_are_rejected(self):
+        name = "yt_dlp-2026.10.26.data/data/share/doc/link"
+        entry = self.wheel("yt-dlp", "2026.10.26", {name: "target"}, mode={name: stat.S_IFLNK | 0o777})
+        with self.assertRaises(ValueError):
+            self.install([entry, *self.wheels()[1:]])
+        entry = self.wheel("yt-dlp", "2026.10.26", {name: "documentation"})
+        wheel = self.root / "downloads" / (entry["sha256"] + ".whl")
+        with zipfile.ZipFile(wheel) as archive:
+            runtime_size = sum(item.file_size for item in archive.infolist() if item.filename != name)
+        with patch.object(self.helper, "MAX_EXPANDED", runtime_size):
+            with self.assertRaises(ValueError):
+                self.install([entry, *self.wheels()[1:]])
+
     def test_checksum_and_size_are_verified_before_opening_zip(self):
         for key, value in (("sha256", "0" * 64), ("size", 1)):
             with self.subTest(key=key):
@@ -357,23 +413,7 @@ class DependencyTests(unittest.TestCase):
                 self.assertEqual(entry[key], pinned[key])
 
     def test_z_actual_c_activation_smoke_confirms_real_packages_without_network(self):
-        baseline = json.loads((HELPER.parent / "dependencies.json").read_text())
-        entries = []
-        for entry in baseline["packages"]:
-            module = self.helper.MODULES[entry["name"]]
-            host = Path(os.environ.get("YOINKD_HOST_PACKAGES", PROJECT / ".cache/native-dependencies/host-packages"))
-            source = HELPER.parent if (HELPER.parent / module).is_dir() else host
-            archive = self.root / (module + ".whl")
-            with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
-                for directory in (source / module, source / (module + "-" + entry["version"] + ".dist-info")):
-                    self.assertTrue(directory.is_dir(), "Prepare the host baseline before this verification")
-                    for file in sorted(directory.rglob("*")):
-                        if file.is_file() and "__pycache__" not in file.parts:
-                            output.write(file, file.relative_to(source))
-            payload = archive.read_bytes()
-            fixture = {**entry, "sha256": hashlib.sha256(payload).hexdigest(), "size": len(payload)}
-            archive.replace(self.root / "downloads" / (fixture["sha256"] + ".whl"))
-            entries.append(fixture)
+        entries = self.official_wheels()
         installed = self.helper.install(self.root, entries)
         sys.path.insert(0, str(HELPER.parent))
         spec = importlib.util.spec_from_file_location("_iy_native", self.native_output)

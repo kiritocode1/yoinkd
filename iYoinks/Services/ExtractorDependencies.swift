@@ -117,7 +117,7 @@ final class ExtractorDependencies: ObservableObject {
     }
 
     func ensureReady() async throws -> URL {
-        beginOperation()
+        beginOperation(working: packages.allSatisfy({ $0.installedVersion == nil }) ? ExtractorPackageID.allCases : [])
         defer { endOperation() }
         do {
             let report = try await installer.perform(.ready)
@@ -133,7 +133,16 @@ final class ExtractorDependencies: ObservableObject {
     }
 
     private func perform(_ action: DependencyInstaller.Action) async {
-        beginOperation()
+        let working: [ExtractorPackageID]
+        switch action {
+        case .check:
+            working = []
+        case .all, .ready:
+            working = ExtractorPackageID.allCases
+        case .update(let id):
+            working = packages.allSatisfy({ $0.installedVersion == nil }) ? ExtractorPackageID.allCases : [id]
+        }
+        beginOperation(working: working)
         defer { endOperation() }
         do {
             apply(try await installer.perform(action))
@@ -145,10 +154,15 @@ final class ExtractorDependencies: ObservableObject {
         }
     }
 
-    private func beginOperation() {
+    private func beginOperation(working: [ExtractorPackageID]) {
         operationCount += 1
         isUpdating = true
         status = nil
+        for index in packages.indices where working.contains(packages[index].id) {
+            packages[index].isWorking = true
+            packages[index].progress = nil
+            packages[index].error = nil
+        }
     }
 
     private func endOperation() {
