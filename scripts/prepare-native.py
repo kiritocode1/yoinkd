@@ -80,7 +80,8 @@ def prepare(cache, offline):
     stamp = cache / "prepared.sha256"
     expected = [PROJECT / "Packages/YoinksExtractor/Vendor/Python.xcframework", PROJECT / "Vendor/SwiftFFmpeg-iOS",
                 PROJECT / "Packages/YoinksExtractor/Sources/QuickJS/quickjs.c", RESOURCES / "Python/lib/python3.15/encodings",
-                RESOURCES / "Extractor/yt_dlp", RESOURCES / "Extractor/yt_dlp_ejs", RESOURCES / "Extractor/certifi",
+                cache / "host-packages/yt_dlp", cache / "host-packages/yt_dlp_ejs", cache / "host-packages/certifi",
+                RESOURCES / "Extractor/dependencies.json", RESOURCES / "Extractor/iyoinks_dependencies.py",
                 RESOURCES / "Legal/ThirdPartyNotices.txt"]
     if stamp.exists() and stamp.read_text() == fingerprint and all(path.exists() for path in expected):
         print("Pinned native dependencies are ready.")
@@ -117,15 +118,24 @@ def prepare(cache, offline):
         shutil.copytree(ffmpeg / "Licenses", legal / "FFmpeg-dependencies")
         shutil.copy2(quickjs / "LICENSE", legal / "QuickJS-MIT.txt")
         modules = {"yt-dlp": "yt_dlp", "yt-dlp-ejs": "yt_dlp_ejs", "certifi": "certifi"}
+        baseline = json.loads((RESOURCES / "Extractor/dependencies.json").read_text())
         for entry in manifest["packages"]:
+            pinned = next(item for item in baseline["packages"] if item["name"] == entry["name"])
+            assert all(pinned[key] == entry[key] for key in ("version", "url", "sha256")), "Update the runtime baseline alongside build pins"
             wheel = root / entry["name"]
-            unpack(acquire(entry, cache, offline), wheel)
+            archive = acquire(entry, cache, offline)
+            assert archive.stat().st_size == pinned["size"], "Baseline wheel size mismatch"
+            unpack(archive, wheel)
             module = modules[entry["name"]]
-            replace_tree(wheel / module, RESOURCES / "Extractor" / module)
+            host = cache / "host-packages"
+            replace_tree(wheel / module, host / module)
             metadata = next(wheel.glob("*.dist-info"))
-            for old in (RESOURCES / "Extractor").glob(module + "-*.dist-info"):
+            for old in host.glob(module + "-*.dist-info"):
                 if old.name != metadata.name: shutil.rmtree(old)
-            replace_tree(metadata, RESOURCES / "Extractor" / metadata.name)
+            replace_tree(metadata, host / metadata.name)
+            obsolete = RESOURCES / "Extractor" / module
+            if obsolete.exists(): shutil.rmtree(obsolete)
+            for old in (RESOURCES / "Extractor").glob(module + "-*.dist-info"): shutil.rmtree(old)
             licenses = metadata / "licenses"
             if licenses.is_dir(): shutil.copytree(licenses, legal / entry["name"])
             else:
@@ -145,7 +155,8 @@ QuickJS-NG 0.16.2. MIT.
 https://github.com/quickjs-ng/quickjs/releases/tag/v0.16.2
 
 yt-dlp 2026.10.26, yt-dlp-ejs 0.8.0, certifi 2026.10.23.
-Their license files are included in this directory and their bundled package metadata.
+Baseline license files are included here. Installed versions retain their own package metadata.
+These three pure packages download on device and are not bundled in the app.
 https://github.com/yt-dlp/yt-dlp
 https://github.com/yt-dlp/ejs
 https://github.com/certifi/python-certifi
@@ -157,7 +168,7 @@ Seal and Palladium supplied workflow references. No application code from either
         replace_tree(legal, RESOURCES / "Legal")
         for directory in (RESOURCES / "Extractor").rglob("__pycache__"): shutil.rmtree(directory)
     stamp.write_text(fingerprint)
-    print("Prepared pinned Python, QuickJS, FFmpeg, extractor packages, and license notices.")
+    print("Prepared bundled native runtimes, host-only extractor baseline, and license notices.")
 
 
 def main():

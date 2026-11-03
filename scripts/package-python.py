@@ -36,6 +36,14 @@ def package_app(app, project, sdk, arch):
     if len(resources) != 1:
         raise ValueError("The app must contain exactly one bundled extractor.")
     resource_root = resources[0].parent.parent
+    extractor = resource_root / "Extractor"
+    for name in ("iyoinks_dependencies.py", "dependencies.json"):
+        if not (extractor / name).is_file():
+            raise ValueError("The app is missing its dependency updater or baseline manifest.")
+    for module in ("yt_dlp", "yt_dlp_ejs", "certifi"):
+        tree = extractor / module
+        if tree.exists(): shutil.rmtree(tree)
+        for metadata in extractor.glob(module + "-*.dist-info"): shutil.rmtree(metadata)
     python = project / "Packages/YoinksExtractor/Vendor/Python.xcframework"
     identifier = "ios-arm64" if sdk == "iphoneos" else "ios-arm64_x86_64-simulator"
     platform = "iPhoneOS" if sdk == "iphoneos" else "iPhoneSimulator"

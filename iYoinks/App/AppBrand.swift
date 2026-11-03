@@ -30,7 +30,7 @@ struct BrandHeader: View {
         HStack(spacing: 8) {
             AppBrand.image(for: colorScheme).resizable().scaledToFit().frame(width: 28, height: 28)
                 .accessibilityHidden(true)
-            Text("iYoinks").font(.system(.headline, design: .rounded))
+            Text("yoink'd").font(AppTypography.font(.headline, weight: .semibold))
         }
         .accessibilityElement(children: .combine)
     }

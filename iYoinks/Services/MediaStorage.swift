@@ -27,17 +27,65 @@ struct MediaInspection: Sendable {
 struct MediaRecovery: Sendable {
     let commits: [PendingMedia]
     let deletions: [PendingDeletion]
+    let folderError: String?
 }
 
 /// Coordinates Files imports, inspects real media, and keeps file work off the main actor.
 actor MediaStorage {
     let files: MediaFileStore
+    private let scopedFolder: URL?
+    private let folderError: String?
 
-    init(files: MediaFileStore) { self.files = files }
+    init(files: MediaFileStore, scopedFolder: URL? = nil, folderError: String? = nil) {
+        self.files = files
+        self.scopedFolder = scopedFolder
+        self.folderError = folderError
+    }
+
+    deinit { scopedFolder?.stopAccessingSecurityScopedResource() }
+
+    @concurrent
+    nonisolated static func open(root: URL) async throws -> MediaStorage {
+        let selection = try MediaFolderPreferences(root: root).resolve()
+        return MediaStorage(files: MediaFileStore(root: root, mediaDirectory: selection.url),
+                            scopedFolder: selection.scoped ? selection.url : nil, folderError: selection.error)
+    }
 
     func prepare() throws -> MediaRecovery {
-        try files.prepareDirectories()
-        return try MediaRecovery(commits: files.pendingMedia(), deletions: files.pendingDeletions())
+        let legacy = MediaFileStore(root: files.root)
+        try legacy.prepareDirectories()
+        if folderError == nil, files.mediaDirectory.standardizedFileURL == MediaFolderPreferences(root: files.root).defaultFolder.standardizedFileURL {
+            let migration = try legacy.prepareRelocation(to: files.mediaDirectory)
+            try? legacy.finishRelocation(migration)
+        }
+        return try MediaRecovery(commits: files.pendingMedia(), deletions: files.pendingDeletions(), folderError: folderError)
+    }
+
+    func relocate(to folder: URL?) throws -> MediaStorage {
+        let preferences = MediaFolderPreferences(root: files.root)
+        let destination = folder ?? preferences.defaultFolder
+        guard destination.isFileURL else { throw CocoaError(.fileWriteUnsupportedScheme) }
+        let scoped = folder?.startAccessingSecurityScopedResource() ?? false
+        do {
+            var coordinationError: NSError?
+            var result: Result<MediaRelocation, any Error>?
+            NSFileCoordinator().coordinate(writingItemAt: destination, options: .forMerging, error: &coordinationError) { coordinated in
+                result = Result { try files.prepareRelocation(to: coordinated) }
+            }
+            if let coordinationError { throw coordinationError }
+            guard let result else { throw CocoaError(.fileWriteUnknown) }
+            let relocation = try result.get()
+            do { try preferences.save(folder) } catch {
+                try? files.rollbackRelocation(relocation)
+                throw error
+            }
+            let storage = MediaStorage(files: MediaFileStore(root: files.root, mediaDirectory: destination), scopedFolder: scoped ? folder : nil)
+            try? files.finishRelocation(relocation)
+            return storage
+        } catch {
+            if scoped { folder?.stopAccessingSecurityScopedResource() }
+            throw error
+        }
     }
 
     func stageImport(_ source: URL) throws -> StagedMedia {
@@ -69,13 +117,17 @@ actor MediaStorage {
         guard !videoTracks.isEmpty || !audioTracks.isEmpty else { throw MediaStorageError.unsupportedMedia }
         try Task.checkCancellation()
 
-        let kind: MediaKind = videoTracks.isEmpty ? .audio : .video
+        let audioExtensions = ["mp3", "m4a", "aac", "flac", "wav", "aiff", "aif", "caf"]
+        let kind: MediaKind = videoTracks.isEmpty || (!audioTracks.isEmpty && audioExtensions.contains(url.pathExtension.lowercased())) ? .audio : .video
         let metadata = (try? await asset.load(.commonMetadata)) ?? []
         let titleItem = AVMetadataItem.metadataItems(from: metadata, filteredByIdentifier: .commonIdentifierTitle).first
         let embeddedTitle = try? await titleItem?.load(.stringValue)
+        let artistItem = AVMetadataItem.metadataItems(from: metadata, filteredByIdentifier: .commonIdentifierArtist).first
+        let embeddedArtist = try? await artistItem?.load(.stringValue)
         let fallback = URL(fileURLWithPath: staged.originalName).deletingPathExtension().lastPathComponent
         let title = embeddedTitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let details = MediaDetails(kind: kind, duration: duration.seconds, byteCount: size, originalName: staged.originalName)
+        let details = MediaDetails(kind: kind, duration: duration.seconds, byteCount: size, originalName: staged.originalName,
+                                   artist: embeddedArtist?.trimmingCharacters(in: .whitespacesAndNewlines))
         let thumbnail = await thumbnail(url: url, kind: kind, duration: duration.seconds, metadata: metadata)
         return MediaInspection(title: title.isEmpty ? (fallback.isEmpty ? "Untitled media" : fallback) : title, details: details, thumbnail: thumbnail)
     }
@@ -108,15 +160,31 @@ actor MediaStorage {
     func prepareCommit(_ staged: StagedMedia, title: String, details: MediaDetails) throws -> PendingMedia {
         try files.prepareCommit(staged, title: title, details: details)
     }
-    func commitFile(_ pending: PendingMedia) throws { try files.commitFile(pending) }
-    func rollbackCommit(_ pending: PendingMedia) throws { try files.rollbackCommit(pending) }
+    func commitFile(_ pending: PendingMedia) throws { try coordinateMedia { try $0.commitFile(pending) } }
+    func rollbackCommit(_ pending: PendingMedia) throws { try coordinateMedia { try $0.rollbackCommit(pending) } }
     func finishCommit(_ pending: PendingMedia) throws { try files.finishCommit(pending) }
     func discard(_ staged: StagedMedia) throws { try files.discard(staged) }
     func stagedMedia() throws -> [StagedMedia] { try files.stagedMedia() }
-    func stageDeletion(id: UUID, file: MediaFileName) throws -> PendingDeletion { try files.stageDeletion(id: id, file: file) }
-    func restoreDeletion(_ pending: PendingDeletion) throws { try files.restoreDeletion(pending) }
+    func stageDeletion(id: UUID, file: MediaFileName) throws -> PendingDeletion { try coordinateMedia { try $0.stageDeletion(id: id, file: file) } }
+    func restoreDeletion(_ pending: PendingDeletion) throws { try coordinateMedia { try $0.restoreDeletion(pending) } }
     func finishDeletion(_ pending: PendingDeletion) throws { try files.finishDeletion(pending) }
     func saveThumbnail(_ data: Data, id: UUID) throws { try files.saveThumbnail(data, id: id) }
+    func normalizedThumbnail(_ data: Data?) -> Data? {
+        guard let data, data.count <= 8 * 1024 * 1024,
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? NSNumber,
+              let height = properties[kCGImagePropertyPixelHeight] as? NSNumber,
+              width.doubleValue > 0, height.doubleValue > 0,
+              width.doubleValue * height.doubleValue <= 16_000_000 else { return nil }
+        let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                                      kCGImageSourceCreateThumbnailWithTransform: true,
+                                      kCGImageSourceThumbnailMaxPixelSize: 720]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary),
+              let normalized = UIImage(cgImage: image).jpegData(compressionQuality: 0.85),
+              normalized.count <= 1024 * 1024 else { return nil }
+        return normalized
+    }
     func readThumbnail(id: UUID) -> Data? { try? Data(contentsOf: files.thumbnailURL(id: id)) }
     func resumeData(_ name: MediaFileName) throws -> Data { try files.resumeData(name) }
     func saveResumeData(_ data: Data, id: UUID) throws -> MediaFileName { try files.saveResumeData(data, id: id) }
@@ -155,5 +223,17 @@ actor MediaStorage {
         let url = files.mediaURL(name)
         guard FileManager.default.isReadableFile(atPath: url.path) else { throw MediaStorageError.missingFile }
         return url
+    }
+
+    private func coordinateMedia<Value: Sendable>(_ operation: @Sendable (MediaFileStore) throws -> Value) throws -> Value {
+        let currentFiles = files
+        var coordinationError: NSError?
+        var result: Result<Value, any Error>?
+        NSFileCoordinator().coordinate(writingItemAt: currentFiles.mediaDirectory, options: .forMerging, error: &coordinationError) { coordinated in
+            result = Result { try operation(MediaFileStore(root: currentFiles.root, mediaDirectory: coordinated)) }
+        }
+        if let coordinationError { throw coordinationError }
+        guard let result else { throw CocoaError(.fileWriteUnknown) }
+        return try result.get()
     }
 }

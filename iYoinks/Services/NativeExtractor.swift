@@ -16,6 +16,10 @@ struct ExtractorProgress: Codable, Sendable {
 struct ExtractedFile: Decodable, Sendable {
     let fileName: MediaFileName
     let title: String
+    let artist: String?
+    let uploader: String?
+    let thumbnailFileName: MediaFileName?
+    let artworkEmbedded: Bool?
 }
 
 enum ExtractorError: Error, LocalizedError {
@@ -24,7 +28,7 @@ enum ExtractorError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .unavailable: "The bundled extractor couldn't start. Reinstall the latest iYoinks build."
+        case .unavailable: "The bundled extractor couldn't start. Reinstall the latest yoink'd build."
         case .failed(let message): message
         }
     }
@@ -48,15 +52,44 @@ enum NativeExtractor {
     }
 
     static func inspect(_ link: MediaLink) async throws -> SourceMedia {
-        try await call(Request(action: "inspect", url: link.url.absoluteString, cacheDirectory: nil), events: { _ in })
+        _ = try await ExtractorDependencies.shared.ensureReady()
+        try Task.checkCancellation()
+        return try await call(Request(action: "inspect", url: link.url.absoluteString, cacheDirectory: nil), events: { _ in })
     }
 
     static func download(_ link: MediaLink, selection: SourceSelection, directory: URL, cache: URL,
                          events: @escaping @Sendable (ExtractorProgress) -> Void) async throws -> ExtractedFile {
+        _ = try await ExtractorDependencies.shared.ensureReady()
+        try Task.checkCancellation()
         let request = Request(action: "download", url: link.url.absoluteString, cacheDirectory: cache.path,
                               directory: directory.path, selection: selection,
                               supportsAV1: VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1))
         return try await call(request, events: events)
+    }
+
+    static func availableOutputFormats(for kind: MediaKind) async throws -> [SourceOutputFormat] {
+        try await NativeOutputSupport.shared.formats(for: kind)
+    }
+
+    static func readSavedResult(directory: URL) async -> ExtractedFile? {
+        await Task.detached(priority: .utility) { () -> ExtractedFile? in
+            guard let data = boundedData(at: directory.appendingPathComponent("source-result.json"), limit: 32_768) else { return nil }
+            return try? JSONDecoder().decode(ExtractedFile.self, from: data)
+        }.value
+    }
+
+    static func readArtwork(_ file: ExtractedFile, directory: URL) async -> Data? {
+        guard let thumbnail = file.thumbnailFileName else { return nil }
+        return await Task.detached(priority: .utility) {
+            boundedData(at: directory.appendingPathComponent(thumbnail.value), limit: 1_048_576)
+        }.value
+    }
+
+    private nonisolated static func boundedData(at url: URL, limit: Int) -> Data? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: limit + 1), !data.isEmpty, data.count <= limit else { return nil }
+        return data
     }
 
     private static func call<Value: Decodable & Sendable>(_ request: Request,
@@ -97,6 +130,17 @@ enum NativeExtractor {
     }
 }
 
+private actor NativeOutputSupport {
+    static let shared = NativeOutputSupport()
+    private var task: Task<SourceOutputSupport, any Error>?
+
+    func formats(for kind: MediaKind) async throws -> [SourceOutputFormat] {
+        if task == nil { task = Task { try await NativeMediaProcessor.outputSupport() } }
+        guard let task else { throw ExtractorError.unavailable }
+        return try await task.value.availableFormats(for: kind)
+    }
+}
+
 private final class EventSink: Sendable {
     let events: @Sendable (ExtractorProgress) -> Void
     init(events: @escaping @Sendable (ExtractorProgress) -> Void) { self.events = events }
@@ -129,9 +173,37 @@ private final class NativeCall: @unchecked Sendable {
 
 private enum NativeMediaProcessor {
     private static let executionLock = NSLock()
-    private struct Request: Decodable { let tool: String; let args: [String]; let duration: Double? }
-    private struct Response: Encodable { let exitCode: Int; let stdout: String; let stderr: String }
+    private struct Request: Codable { let tool: String; let args: [String]; let duration: Double? }
+    private struct Response: Codable { let exitCode: Int; let stdout: String; let stderr: String }
     private struct CancellationHandle: @unchecked Sendable { let value: OpaquePointer }
+
+    static func outputSupport() async throws -> SourceOutputSupport {
+        let encoders = try await listing("-encoders")
+        let muxers = try await listing("-muxers")
+        return SourceOutputSupport(encodersListing: encoders, muxersListing: muxers)
+    }
+
+    private static func listing(_ argument: String) async throws -> String {
+        let operation = try NativeCall(events: { _ in })
+        let request = Request(tool: "ffmpeg", args: ["-hide_banner", argument], duration: nil)
+        let encoded = String(decoding: try JSONEncoder().encode(request), as: UTF8.self)
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                DispatchQueue.global(qos: .utility).async {
+                    guard let pointer = execute(operation: operation.handle, json: encoded) else {
+                        continuation.resume(throwing: ExtractorError.unavailable)
+                        return
+                    }
+                    defer { iy_free(pointer) }
+                    do {
+                        let response = try JSONDecoder().decode(Response.self, from: Data(String(cString: pointer).utf8))
+                        guard response.exitCode == 0 else { throw ExtractorError.failed("Couldn't check available file formats. Try again.") }
+                        continuation.resume(returning: response.stdout + "\n" + response.stderr)
+                    } catch { continuation.resume(throwing: error) }
+                }
+            }
+        } onCancel: { operation.cancel() }
+    }
 
     static func execute(operation: OpaquePointer, json: String) -> UnsafeMutablePointer<CChar>? {
         executionLock.lock()

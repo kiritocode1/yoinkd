@@ -97,7 +97,7 @@ final class DownloadQueue: ObservableObject {
                         $0.phase = job.phase == .cancelling ? .cancelled : .paused
                         $0.taskIdentifier = nil
                         $0.attemptID = nil
-                        $0.message = job.phase == .cancelling ? nil : "Paused when iYoinks closed. Resume to continue."
+                        $0.message = job.phase == .cancelling ? nil : "Paused when yoink'd closed. Resume to continue."
                     }
                     if job.phase == .cancelling { try? await library.storage.removeSourceWork(id: job.id) }
                 } else if job.phase == .pausing, tasks[job.id] == nil {
@@ -132,13 +132,14 @@ final class DownloadQueue: ObservableObject {
     }
 
     func enqueue(_ media: SourceMedia, selection: SourceSelection) async throws {
-        _ = try media.selection(kind: selection.kind, formatID: selection.formatID)
+        _ = try media.selection(kind: selection.kind, formatID: selection.formatID, outputFormat: selection.outputFormat)
         let link = try MediaLink(media.sourceURL.absoluteString)
         try await enqueueJob(DownloadJob(link: link, title: media.title, selection: selection))
     }
 
     private func enqueueJob(_ job: DownloadJob) async throws {
         guard isReady else { throw CocoaError(.fileReadUnknown) }
+        guard !library.isChangingFolder else { throw ExtractorError.failed("Wait for the save folder to finish changing.") }
         jobs.append(job)
         do { try await persist() } catch {
             jobs.removeAll { $0.id == job.id }
@@ -166,8 +167,9 @@ final class DownloadQueue: ObservableObject {
         continuation.yield(.paused(identity, resumeData: data))
     }
 
-    func resume(_ id: UUID) async {
+    func resume(_ id: UUID) async throws {
         guard job(id)?.phase == .paused else { return }
+        guard !library.isChangingFolder else { throw ExtractorError.failed("Wait for the save folder to finish changing.") }
         update(id) { $0.phase = .queued; $0.message = nil; $0.attemptID = nil }
         await saveOrReport()
         await schedule()
@@ -192,8 +194,9 @@ final class DownloadQueue: ObservableObject {
         await schedule()
     }
 
-    func retry(_ id: UUID) async {
+    func retry(_ id: UUID) async throws {
         guard let current = job(id), current.phase == .failed || current.phase == .cancelled else { return }
+        guard !library.isChangingFolder else { throw ExtractorError.failed("Wait for the save folder to finish changing.") }
         update(id) {
             $0.phase = .queued
             $0.message = nil
@@ -221,7 +224,7 @@ final class DownloadQueue: ObservableObject {
     }
 
     private func schedule() async {
-        guard isReady, !isScheduling else { return }
+        guard isReady, !isScheduling, !library.isChangingFolder else { return }
         isScheduling = true
         defer { isScheduling = false }
         while occupiedSlots < 2,
@@ -368,8 +371,19 @@ final class DownloadQueue: ObservableObject {
     private func process(_ staged: StagedMedia, identity: TransferIdentity) async {
         let result: Result<MediaFileName, any Error>
         do {
-            let sourceTitle = job(staged.id)?.sourceSelection == nil ? nil : job(staged.id)?.title
-            result = .success(try await library.commit(staged, preferredTitle: sourceTitle))
+            var sourceTitle: String?
+            var thumbnail: Data?
+            var artist: String?
+            if job(staged.id)?.sourceSelection != nil {
+                sourceTitle = job(staged.id)?.title
+                let directory = try await library.storage.sourceWorkDirectory(id: staged.id)
+                if let metadata = await NativeExtractor.readSavedResult(directory: directory), metadata.fileName.value == staged.originalName {
+                    sourceTitle = metadata.title
+                    artist = metadata.artist ?? metadata.uploader
+                    thumbnail = await NativeExtractor.readArtwork(metadata, directory: directory)
+                }
+            }
+            result = .success(try await library.commit(staged, preferredTitle: sourceTitle, preferredThumbnail: thumbnail, artist: artist))
         } catch {
             try? await library.storage.discard(staged)
             result = .failure(error)

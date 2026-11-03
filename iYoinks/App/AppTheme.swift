@@ -20,12 +20,34 @@ final class AppTheme: ObservableObject {
         palette = preferences.theme.palette
     }
 
+    var background: Color {
+        appearanceColor(light: palette.lightColors.background, dark: palette.darkColors.background)
+    }
+
+    var surface: Color {
+        appearanceColor(light: palette.lightColors.surface, dark: palette.darkColors.surface)
+    }
+
+    var controlBackground: Color {
+        appearanceColor(light: palette.lightColors.controlBackground, dark: palette.darkColors.controlBackground)
+    }
+
+    var primaryText: Color {
+        appearanceColor(light: palette.lightColors.primaryText, dark: palette.darkColors.primaryText)
+    }
+
+    var secondaryText: Color {
+        appearanceColor(light: palette.lightColors.secondaryText, dark: palette.darkColors.secondaryText)
+    }
+
+    var separator: Color {
+        appearanceColor(light: palette.lightColors.separator, dark: palette.darkColors.separator)
+    }
+
     var accent: Color { appearanceColor(light: palette.light, dark: palette.dark) }
 
     var onAccent: Color {
-        let light = palette.light.contrast(with: .white) >= 4.5 ? AccentRGB.white : .black
-        let dark = palette.dark.contrast(with: .black) >= 4.5 ? AccentRGB.black : .white
-        return appearanceColor(light: light, dark: dark)
+        appearanceColor(light: palette.lightColors.onAccent, dark: palette.darkColors.onAccent)
     }
 
     func setTheme(_ theme: AccentTheme) {
@@ -69,6 +91,7 @@ final class AppTheme: ObservableObject {
         let changed = selection.select(key)
         if changed { extractionTask?.cancel(); extractionTask = nil }
         guard theme == .dynamic else { return }
+        if changed { palette = selection.palette }
         guard let key else { palette = .neutral; return }
         guard changed || extractionTask == nil else { return }
         let requestID = selection.requestID
@@ -96,7 +119,7 @@ final class AppTheme: ObservableObject {
         }
     }
 
-    private func appearanceColor(light: AccentRGB, dark: AccentRGB) -> Color {
+    private nonisolated func appearanceColor(light: AccentRGB, dark: AccentRGB) -> Color {
         Color(uiColor: UIColor { traits in
             let color = traits.userInterfaceStyle == .dark ? dark : light
             return UIColor(red: color.red, green: color.green, blue: color.blue, alpha: 1)

@@ -5,6 +5,66 @@
 	};
 	"objectVersion" = 56;
 	"objects" = {
+		"A11CE000000000000000000B" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/App/AppTypography.swift";
+			"sourceTree" = "<group>";
+		};
+		"A11CE000000000000000000C" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A11CE000000000000000000B";
+		};
+		"A11CE000000000000000000D" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/App/AppNativeIcons.swift";
+			"sourceTree" = "<group>";
+		};
+		"A11CE000000000000000000E" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A11CE000000000000000000D";
+		};
+		"A11CE000000000000000000F" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Features/Library/MediaPlayback.swift";
+			"sourceTree" = "<group>";
+		};
+		"A11CE0000000000000000010" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A11CE000000000000000000F";
+		};
+		"A11CE0000000000000000011" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Services/MediaFolderPreferences.swift";
+			"sourceTree" = "<group>";
+		};
+		"A11CE0000000000000000012" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A11CE0000000000000000011";
+		};
+		"A11CE0000000000000000013" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Services/ExtractorDependencies.swift";
+			"sourceTree" = "<group>";
+		};
+		"A11CE0000000000000000014" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A11CE0000000000000000013";
+		};
+		"A11CE0000000000000000015" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "iYoinks/Features/Settings/DependencyUpdatesSection.swift";
+			"sourceTree" = "<group>";
+		};
+		"A11CE0000000000000000016" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A11CE0000000000000000015";
+		};
 		"A11CE0000000000000000001" = {
 			"isa" = "PBXFileReference";
 			"lastKnownFileType" = "sourcecode.swift";
@@ -167,6 +227,8 @@
 				"A11CE0000000000000000003",
 				"A11CE0000000000000000005",
 				"A11CE0000000000000000007",
+				"A11CE000000000000000000B",
+				"A11CE000000000000000000D",
 			);
 			"name" = "App";
 			"sourceTree" = "<group>";
@@ -196,6 +258,7 @@
 				"149D4A9257C9CDBE4E6D30CD",
 				"4FD9EB1DF91B7808D267C655",
 				"A8BB400A89F851E61A735F8E",
+				"A11CE000000000000000000F",
 			);
 			"name" = "Library";
 			"sourceTree" = "<group>";
@@ -204,6 +267,7 @@
 			"isa" = "PBXGroup";
 			"children" = (
 				"5A2FEAB96AFF78DF34D4CAD2",
+				"A11CE0000000000000000015",
 			);
 			"name" = "Settings";
 			"sourceTree" = "<group>";
@@ -333,6 +397,12 @@
 				"A11CE0000000000000000006",
 				"A11CE0000000000000000008",
 				"A11CE000000000000000000A",
+				"A11CE000000000000000000C",
+				"A11CE000000000000000000E",
+				"A11CE0000000000000000010",
+				"A11CE0000000000000000012",
+				"A11CE0000000000000000014",
+				"A11CE0000000000000000016",
 			);
 			"runOnlyForDeploymentPostprocessing" = 0;
 		};
@@ -380,10 +450,10 @@
 				"ASSETCATALOG_COMPILER_APPICON_NAME" = "AppIcon";
 				"ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES" = "AppIconDark";
 				"CODE_SIGN_STYLE" = "Automatic";
-				"CURRENT_PROJECT_VERSION" = "3";
+				"CURRENT_PROJECT_VERSION" = "6";
 				"ENABLE_PREVIEWS" = "YES";
 				"GENERATE_INFOPLIST_FILE" = "YES";
-				"INFOPLIST_KEY_CFBundleDisplayName" = "iYoinks";
+				"INFOPLIST_KEY_CFBundleDisplayName" = "yoink'd";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation" = "YES";
 				"INFOPLIST_KEY_UIApplicationSupportsMultipleScenes" = "NO";
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents" = "YES";
@@ -394,7 +464,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				"MARKETING_VERSION" = "0.3.0";
+				"MARKETING_VERSION" = "0.5.0";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "com.maynkudu.iyoinks";
 				"PRODUCT_NAME" = "$(TARGET_NAME)";
 				"SUPPORTED_PLATFORMS" = "iphoneos iphonesimulator";
@@ -428,10 +498,10 @@
 				"ASSETCATALOG_COMPILER_APPICON_NAME" = "AppIcon";
 				"ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES" = "AppIconDark";
 				"CODE_SIGN_STYLE" = "Automatic";
-				"CURRENT_PROJECT_VERSION" = "3";
+				"CURRENT_PROJECT_VERSION" = "6";
 				"ENABLE_PREVIEWS" = "YES";
 				"GENERATE_INFOPLIST_FILE" = "YES";
-				"INFOPLIST_KEY_CFBundleDisplayName" = "iYoinks";
+				"INFOPLIST_KEY_CFBundleDisplayName" = "yoink'd";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation" = "YES";
 				"INFOPLIST_KEY_UIApplicationSupportsMultipleScenes" = "NO";
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents" = "YES";
@@ -442,7 +512,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				"MARKETING_VERSION" = "0.3.0";
+				"MARKETING_VERSION" = "0.5.0";
 				"PRODUCT_BUNDLE_IDENTIFIER" = "com.maynkudu.iyoinks";
 				"PRODUCT_NAME" = "$(TARGET_NAME)";
 				"SUPPORTED_PLATFORMS" = "iphoneos iphonesimulator";
@@ -538,6 +608,8 @@
 				"2F53ADFEF4E04FD443D06F8E",
 				"88C3B54E9AF101FD08959C3B",
 				"9372E44855C69AA0A31F6730",
+				"A11CE0000000000000000011",
+				"A11CE0000000000000000013",
 			);
 			"name" = "Services";
 			"sourceTree" = "<group>";

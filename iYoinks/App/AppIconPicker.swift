@@ -1,48 +1,70 @@
 import SwiftUI
 
 @MainActor
-struct AppIconPicker: View {
-    @State private var selected = LauncherIcon.current
-    @State private var isChanging = false
-    @State private var errorMessage: String?
+struct AppIconAppearanceObserver: UIViewControllerRepresentable {
+    @Environment(\.scenePhase) private var scenePhase
 
-    var body: some View {
-        if Bundle.main.object(forInfoDictionaryKey: "IYoinksUsesAlternateIconFallback") as? Bool == true {
-            Picker("App icon", selection: Binding(get: { selected }, set: changeIcon)) {
-                ForEach(LauncherIcon.allCases, id: \.self) { icon in
-                    Text(icon.rawValue).tag(icon)
-                }
+    func makeUIViewController(context: Context) -> Controller { Controller() }
+
+    func updateUIViewController(_ controller: Controller, context: Context) {
+        if scenePhase == .active { controller.observePhoneAppearance() }
+    }
+
+    static func dismantleUIViewController(_ controller: Controller, coordinator: ()) {
+        controller.stopObserving()
+    }
+
+    final class Controller: UIViewController {
+        private weak var observedScene: UIWindowScene?
+        private var registration: (any UITraitChangeRegistration)?
+        private var isChanging = false
+        private var changeTask: Task<Void, Never>?
+
+        override func loadView() {
+            view = UIView(frame: .zero)
+            view.isUserInteractionEnabled = false
+        }
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            observePhoneAppearance()
+        }
+
+        func observePhoneAppearance() {
+            guard let scene = viewIfLoaded?.window?.windowScene else { return }
+            if observedScene !== scene {
+                stopObserving()
+                observedScene = scene
+                registration = scene.registerForTraitChanges([UITraitUserInterfaceStyle.self], target: self, action: #selector(phoneAppearanceChanged))
             }
-            .disabled(isChanging || !UIApplication.shared.supportsAlternateIcons)
-            .accessibilityHint("Choose the light or dark Home Screen icon")
-            .alert("Couldn't change the icon", isPresented: Binding(
-                get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } }
-            )) {
-                Button("OK", role: .cancel) { errorMessage = nil }
-            } message: { Text(errorMessage ?? "") }
+            updateIcon()
         }
-    }
 
-    private func changeIcon(_ icon: LauncherIcon) {
-        guard !isChanging, icon != selected else { return }
-        isChanging = true
-        Task {
-            defer { isChanging = false }
-            do {
-                try await UIApplication.shared.setAlternateIconName(icon.alternateName)
-                selected = .current
-            } catch { errorMessage = error.localizedDescription }
+        func stopObserving() {
+            if let registration { observedScene?.unregisterForTraitChanges(registration) }
+            registration = nil
+            observedScene = nil
+            changeTask?.cancel()
+            changeTask = nil
         }
-    }
 
-    private enum LauncherIcon: String, CaseIterable {
-        case light = "Light", dark = "Dark"
+        @objc private func phoneAppearanceChanged() { updateIcon() }
 
-        var alternateName: String? { self == .dark ? "AppIconDark" : nil }
-
-        @MainActor
-        static var current: Self {
-            UIApplication.shared.alternateIconName == "AppIconDark" ? .dark : .light
+        private func updateIcon() {
+            guard Bundle.main.object(forInfoDictionaryKey: "IYoinksUsesAlternateIconFallback") as? Bool == true,
+                  UIApplication.shared.supportsAlternateIcons, !isChanging,
+                  let scene = observedScene, scene.activationState == .foregroundActive else { return }
+            let desired = scene.traitCollection.userInterfaceStyle == .dark ? "AppIconDark" : nil
+            guard UIApplication.shared.alternateIconName != desired else { return }
+            isChanging = true
+            changeTask = Task { [weak self] in
+                guard let self else { return }
+                do {
+                    try await UIApplication.shared.setAlternateIconName(desired)
+                    isChanging = false
+                    if !Task.isCancelled { updateIcon() }
+                } catch { isChanging = false }
+            }
         }
     }
 }

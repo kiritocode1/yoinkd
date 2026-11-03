@@ -10,4 +10,6 @@ void iy_operation_emit(IYOperation *operation, const char *json);
 void iy_operation_free(IYOperation *operation);
 char *iy_runtime_call(const char *home, const char *packages, const char *executable,
                       IYOperation *operation, const char *request);
+char *iy_dependency_call(const char *home, const char *packages, const char *executable,
+                         const char *request);
 void iy_free(void *pointer);

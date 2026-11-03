@@ -1,16 +1,17 @@
 --- a/Sources/CFFmpegCLI/ffmpeg_wrapper.c
 +++ b/Sources/CFFmpegCLI/ffmpeg_wrapper.c
-@@ -10,6 +10,9 @@
+@@ -10,6 +10,10 @@
  #include <stdatomic.h>
  #include <errno.h>
  #include <stdarg.h>
 +#include <libavformat/avformat.h>
 +#include <libavcodec/codec_id.h>
 +#include <libavutil/error.h>
++#include <libavutil/samplefmt.h>
  
  // Generated into the xcframework headers by Scripts/build/create-xcframework.sh.
  #if __has_include(<swiftffmpeg_build_info.h>)
-@@ -24,12 +27,8 @@
+@@ -24,12 +28,8 @@
  // from fftools/ffmpeg.c compiled with -Dmain=ffmpeg_main
  int ffmpeg_main(int argc, char *argv[]);
  
@@ -23,7 +24,7 @@
  
  // Set program name for library mode (from patched opt_common.c)
  void set_library_program_name(const char *name);
-@@ -104,11 +103,48 @@
+@@ -104,11 +104,85 @@
      return ffmpeg_main(argc, argv);
  }
  
@@ -31,15 +32,39 @@
 +
 +// iYoinks needs stream codecs, without linking the conflicting ffprobe CLI globals.
 +static int probe_media(int argc, char *argv[], char *output, size_t capacity) {
-+    if (argc != 7 || strcmp(argv[1], "-v") || strcmp(argv[2], "error") ||
-+        strcmp(argv[3], "-show_streams") || strcmp(argv[4], "-of") || strcmp(argv[5], "json"))
++    int offset = argc == 9 ? 2 : 0;
++    if ((argc != 7 && argc != 9) || strcmp(argv[1], "-v") || strcmp(argv[2], "error") ||
++        strcmp(argv[3 + offset], "-show_streams") || strcmp(argv[4 + offset], "-of") ||
++        strcmp(argv[5 + offset], "json"))
 +        return AVERROR(EINVAL);
++    long long max_pixels = 0;
++    if (offset) {
++        char *end = NULL;
++        errno = 0;
++        max_pixels = strtoll(argv[4], &end, 10);
++        if (strcmp(argv[3], "-max_pixels") || errno || !end || *end || max_pixels <= 0 || max_pixels > 16000000)
++            return AVERROR(EINVAL);
++    }
 +    AVFormatContext *context = avformat_alloc_context();
 +    if (!context) return AVERROR(ENOMEM);
 +    context->interrupt_callback.callback = probe_interrupt;
-+    int result = avformat_open_input(&context, argv[6], NULL, NULL);
++    int result = avformat_open_input(&context, argv[6 + offset], NULL, NULL);
 +    if (result < 0) { avformat_close_input(&context); return result; }
-+    result = avformat_find_stream_info(context, NULL);
++    unsigned int stream_count = context->nb_streams;
++    AVDictionary **decoder_options = NULL;
++    if (max_pixels && stream_count) {
++        decoder_options = calloc(stream_count, sizeof(*decoder_options));
++        if (!decoder_options) { avformat_close_input(&context); return AVERROR(ENOMEM); }
++        for (unsigned int index = 0; result >= 0 && index < stream_count; index++) {
++            result = av_dict_set(&decoder_options[index], "max_pixels", argv[4], 0);
++            if (result >= 0) result = av_dict_set(&decoder_options[index], "threads", "1", 0);
++        }
++    }
++    if (result >= 0) result = avformat_find_stream_info(context, decoder_options);
++    if (decoder_options) {
++        for (unsigned int index = 0; index < stream_count; index++) av_dict_free(&decoder_options[index]);
++        free(decoder_options);
++    }
 +    size_t used = 0;
 +    if (result >= 0) {
 +        int count = snprintf(output, capacity, "{\"streams\":[");
@@ -47,11 +72,24 @@
 +        else used = (size_t)count;
 +    }
 +    for (unsigned int index = 0; result >= 0 && index < context->nb_streams; index++) {
-+        const AVCodecParameters *codec = context->streams[index]->codecpar;
++        const AVStream *stream = context->streams[index];
++        const AVCodecParameters *codec = stream->codecpar;
++        if (max_pixels && codec->codec_type == AVMEDIA_TYPE_VIDEO &&
++            (codec->width <= 0 || codec->height <= 0 || (long long)codec->width * codec->height > max_pixels)) {
++            result = AVERROR(EINVAL);
++            break;
++        }
 +        const char *type = av_get_media_type_string(codec->codec_type);
++        const char *sample_format = codec->codec_type == AVMEDIA_TYPE_AUDIO ? av_get_sample_fmt_name(codec->format) : NULL;
 +        int count = snprintf(output + used, capacity - used,
-+                             "%s{\"codec_type\":\"%s\",\"codec_name\":\"%s\"}",
-+                             index ? "," : "", type ? type : "unknown", avcodec_get_name(codec->codec_id));
++                             "%s{\"codec_type\":\"%s\",\"codec_name\":\"%s\",\"width\":%d,\"height\":%d,"
++                             "\"sample_fmt\":\"%s\",\"sample_rate\":%d,\"channels\":%d,"
++                             "\"bits_per_raw_sample\":%d,\"bits_per_sample\":%d,\"bits_per_coded_sample\":%d,"
++                             "\"disposition\":{\"attached_pic\":%d}}",
++                             index ? "," : "", type ? type : "unknown", avcodec_get_name(codec->codec_id),
++                             codec->width, codec->height, sample_format ? sample_format : "unknown", codec->sample_rate,
++                             codec->ch_layout.nb_channels, codec->bits_per_raw_sample, codec->bits_per_coded_sample,
++                             codec->bits_per_coded_sample, (stream->disposition & AV_DISPOSITION_ATTACHED_PIC) != 0);
 +        if (count < 0 || (size_t)count >= capacity - used) result = AVERROR(ENOSPC);
 +        else used += (size_t)count;
 +    }
@@ -76,7 +114,7 @@
  }
  
  // --- Execute with output capture ---
-@@ -291,11 +327,7 @@
+@@ -291,11 +365,7 @@
  static int execute_tool_main(int argc, char *argv[], int (*tool_main)(int, char *[]), const char *program_name) {
      ffmpeg_reset_logging();
      ffmpeg_clear_cancel();
@@ -89,7 +127,7 @@
      set_library_program_name(program_name);
  
      int exit_code;
-@@ -460,14 +492,14 @@
+@@ -460,14 +530,14 @@
      char *stderr_buffer,
      size_t stderr_buffer_size
  ) {

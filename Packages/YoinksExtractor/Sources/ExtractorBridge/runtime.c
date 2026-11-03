@@ -172,8 +172,7 @@ static PyStatus append_search_path(PyConfig *config, const char *path) {
     PyMem_RawFree(wide_path);
     return status;
 }
-char *iy_runtime_call(const char *home, const char *packages, const char *executable,
-                      IYOperation *operation, const char *request) {
+static char *initialize_runtime(const char *home, const char *packages, const char *executable) {
     pthread_mutex_lock(&initialization_lock);
     if (!Py_IsInitialized()) {
         PyImport_AppendInittab("_iy_native", PyInit__iy_native);
@@ -202,11 +201,9 @@ char *iy_runtime_call(const char *home, const char *packages, const char *execut
         PyEval_SaveThread();
     }
     pthread_mutex_unlock(&initialization_lock);
-    PyGILState_STATE gil = PyGILState_Ensure();
-    PyObject *module = PyImport_ImportModule("iyoinks_extract");
-    PyObject *function = module ? PyObject_GetAttrString(module, "run") : NULL;
-    PyObject *token = PyCapsule_New(operation, "iYoinks.operation", NULL);
-    PyObject *result = function && token ? PyObject_CallFunction(function, "sO", request, token) : NULL;
+    return NULL;
+}
+static char *python_output(PyObject *result) {
     char *output = NULL;
     if (result) {
         const char *text = PyUnicode_AsUTF8(result);
@@ -220,6 +217,86 @@ char *iy_runtime_call(const char *home, const char *packages, const char *execut
         Py_XDECREF(message);
         Py_XDECREF(error);
     }
+    return output;
+}
+char *iy_dependency_call(const char *home, const char *packages, const char *executable,
+                         const char *request) {
+    char *failure = initialize_runtime(home, packages, executable);
+    if (failure) return failure;
+    PyGILState_STATE gil = PyGILState_Ensure();
+    PyObject *module = PyImport_ImportModule("iyoinks_dependencies");
+    PyObject *function = module ? PyObject_GetAttrString(module, "run") : NULL;
+    PyObject *result = function ? PyObject_CallFunction(function, "s", request) : NULL;
+    char *output = python_output(result);
+    Py_XDECREF(result);
+    Py_XDECREF(function);
+    Py_XDECREF(module);
+    PyGILState_Release(gil);
+    return output;
+}
+static int dependency_activation(const char *action) {
+    PyObject *module = PyImport_ImportModule("iyoinks_dependencies");
+    PyObject *function = module ? PyObject_GetAttrString(module, "runtime_activation") : NULL;
+    PyObject *result = function ? PyObject_CallFunction(function, "s", action) : NULL;
+    int success = result != NULL;
+    Py_XDECREF(result);
+    Py_XDECREF(function);
+    Py_XDECREF(module);
+    return success;
+}
+static int media_runtime_state = 0;
+static pthread_mutex_t media_initialization_lock = PTHREAD_MUTEX_INITIALIZER;
+char *iy_runtime_call(const char *home, const char *packages, const char *executable,
+                      IYOperation *operation, const char *request) {
+    char *failure = initialize_runtime(home, packages, executable);
+    if (failure) return failure;
+    pthread_mutex_lock(&media_initialization_lock);
+    PyGILState_STATE gil = PyGILState_Ensure();
+    if (media_runtime_state < 0) {
+        PyGILState_Release(gil);
+        pthread_mutex_unlock(&media_initialization_lock);
+        return strdup("Source extraction could not start. Reopen the app to retry with the previous dependency version.");
+    }
+    int first_import = media_runtime_state == 0;
+    if (first_import) {
+        media_runtime_state = -1;
+        if (!dependency_activation("begin")) {
+            char *output = python_output(NULL);
+            PyGILState_Release(gil);
+            pthread_mutex_unlock(&media_initialization_lock);
+            return output;
+        }
+    }
+    PyObject *module = PyImport_ImportModule("iyoinks_extract");
+    if (first_import && module) {
+        PyObject *globals = PyDict_New();
+        if (globals) PyDict_SetItemString(globals, "__builtins__", PyEval_GetBuiltins());
+        PyObject *smoke = globals ? PyRun_String(
+            "import yt_dlp, certifi, yt_dlp_ejs, _iy_native\n"
+            "from pathlib import Path\n"
+            "with yt_dlp.YoutubeDL({'quiet': True, 'cachedir': False, 'js_runtimes': {}}): pass\n"
+            "assert Path(certifi.where()).is_file()\n"
+            "assert (Path(yt_dlp_ejs.__file__).parent / 'yt/solver/core.min.js').is_file()\n"
+            "assert _iy_native.javascript(None, 'print(1 + 1)') == '2\\n'\n",
+            Py_file_input, globals, globals) : NULL;
+        if (smoke && dependency_activation("confirm")) media_runtime_state = 1;
+        Py_XDECREF(smoke);
+        Py_XDECREF(globals);
+    }
+    if (first_import && media_runtime_state != 1) {
+        char *output = python_output(NULL);
+        dependency_activation("reject");
+        PyErr_Clear();
+        Py_XDECREF(module);
+        PyGILState_Release(gil);
+        pthread_mutex_unlock(&media_initialization_lock);
+        return output;
+    }
+    pthread_mutex_unlock(&media_initialization_lock);
+    PyObject *function = module ? PyObject_GetAttrString(module, "run") : NULL;
+    PyObject *token = PyCapsule_New(operation, "iYoinks.operation", NULL);
+    PyObject *result = function && token ? PyObject_CallFunction(function, "sO", request, token) : NULL;
+    char *output = python_output(result);
     Py_XDECREF(result);
     Py_XDECREF(token);
     Py_XDECREF(function);

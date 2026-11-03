@@ -199,6 +199,16 @@ def check():
         obj["lastKnownFileType"] == "folder" and obj["path"] == "iYoinks/Resources"
         for obj in resource_files
     ), "Register the Resources folder for both brand images in Xcode"
+    extractor = ROOT / "iYoinks/Resources/Extractor"
+    assert (extractor / "iyoinks_dependencies.py").is_file()
+    baseline = json.loads((extractor / "dependencies.json").read_text())
+    assert baseline["adapter"] == 1
+    assert {entry["name"] for entry in baseline["packages"]} == {"yt-dlp", "yt-dlp-ejs", "certifi"}
+    pins = json.loads((ROOT / "scripts/native-dependencies.json").read_text())
+    for entry in pins["packages"]:
+        runtime = next(item for item in baseline["packages"] if item["name"] == entry["name"])
+        assert all(runtime[key] == entry[key] for key in ("version", "url", "sha256"))
+        assert 0 < runtime["size"] <= 20 * 1024 * 1024
     configurations = objects[target["buildConfigurationList"]]["buildConfigurations"]
     for identifier in configurations:
         settings = objects[identifier]["buildSettings"]

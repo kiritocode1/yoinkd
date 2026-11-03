@@ -4,7 +4,7 @@ import YoinksCore
 
 /// Metadata for a file already committed to app storage. Capture drafts do not belong here.
 @objc(LibraryItem)
-final class LibraryItem: NSManagedObject {
+final class LibraryItem: NSManagedObject, Identifiable {
     @NSManaged var id: UUID
     @NSManaged var title: String
     @NSManaged var mediaKindRawValue: String

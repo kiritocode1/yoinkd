@@ -1,6 +1,6 @@
 # Architecture
 
-SwiftUI owns the application. Core Data stores the original six-field library model. Media files, thumbnails, details, and the queue journal remain in private app storage.
+SwiftUI owns the application. Core Data stores the original six-field library model. Media defaults to the app's visible Documents folder, or a bookmarked folder selected in Settings. Thumbnails, optional artist details, operation records and the queue journal remain in private Application Support storage.
 
 | Component | Responsibility |
 | --- | --- |
@@ -12,16 +12,19 @@ SwiftUI owns the application. Core Data stores the original six-field library mo
 | DownloadQueue | Attempt identities, state, scheduling, pause/cancel/retry, staging, and commit completion. |
 | SourceBackgroundWork | iOS continued-processing requests, actual progress, finite fallback time, and expiration. |
 | MediaLibrary and MediaStorage | AVFoundation validation and durable file/Core Data commits. |
+| MediaFolderPreferences | Security-scoped folder bookmarks and the default Documents location. |
+| MediaPlayback and MediaDetailView | Artwork-first audio, embedded video, shared fullscreen player and playback lifecycle. |
+| ExtractorDependencies | Verified pure-package acquisition, complete generations and cold-launch activation. |
 
 ## Social downloads
 
-All extraction and media processing run in the iOS application process. Python resolves public webpages through bundled yt-dlp. QuickJS handles YouTube challenges without spawning a process or downloading runtime components. iOS subprocess creation is blocked. Swift serializes native FFmpeg calls and retains operation callbacks until processing and queued callbacks finish.
+All extraction and media processing run in the iOS application process. Python resolves public webpages through a verified downloaded yt-dlp generation. QuickJS handles YouTube challenges without spawning a process or downloading native runtime components. iOS subprocess creation is blocked. Swift serializes native FFmpeg calls and retains operation callbacks until processing and queued callbacks finish.
 
-Source metadata exposes only available formats. Video choices collapse duplicate resolutions and use the shorter dimension for portrait media. Audio uses audio bitrates, including when its only source is a combined video. The queue stores the stable webpage and selection. It resolves fresh stream URLs on each attempt.
+Source metadata exposes every usable source variant. Portrait labels use the shorter dimension. Audio choices include combined streams alongside audio-only streams. Source selection and output conversion are separate typed values. New optional fields preserve old job decoding. Displayed sizes identify exact source bytes, estimates or unknown information, rather than promising a converted file size. Each attempt resolves fresh stream URLs from the persisted webpage.
 
 Each source job has a private work directory. Stream filenames include a hash of their source format ID. Completed and partial streams survive pause and preparation/save failures. They are removed after a successful library commit or explicit cancellation/removal. Relaunch also cleans successful jobs' remaining checkpoints.
 
-FFmpeg prepares MP4 video and playable audio. Supported video/audio codecs copy through where possible. Unsupported video converts with VideoToolbox HEVC, and incompatible video audio converts to AAC. Unsupported audio-only codecs convert to FLAC without upsampling. Compatible audio inside video remuxes without re-encoding. A small libavformat probe reads actual stream codecs, avoiding the upstream ffprobe CLI's duplicate globals.
+FFmpeg prepares native-playable video and audio. Supported codecs copy through where possible. Unsupported video converts with VideoToolbox HEVC, and incompatible video audio converts to AAC. Automatic unsupported audio converts to FLAC without upsampling. Explicit output choices use available native encoders. A small libavformat probe reads actual codecs, avoiding the upstream ffprobe CLI's duplicate globals. Bounded HTTPS artwork is normalized to a JPEG, embedded where supported and retained as a thumbnail fallback. A durable source-result manifest preserves optional artwork and artist metadata across interrupted saves. Attached cover pictures do not change audio classification.
 
 ## State and background execution
 
@@ -33,7 +36,11 @@ Library commits validate the real file through AVFoundation before saving metada
 
 ## Dependency preparation and evidence
 
-Native archive URLs and hashes are pinned in `scripts/native-dependencies.json`. `prepare-native.py` installs generated dependencies and applies exact local patches. `package-python.py` creates `.fwork`/`.origin` mappings and embedded module frameworks. The same packaging is required for xtool and Xcode.
+Native archive URLs and hashes are pinned in `scripts/native-dependencies.json`. `prepare-native.py` installs generated native dependencies and applies exact local patches. `package-python.py` creates `.fwork`/`.origin` mappings and embedded module frameworks. The same packaging is required for xtool and Xcode. Third-party pure-package payloads are removed from the final bundle.
+
+The bundled stdlib-only dependency helper validates official PyPI universal wheels, package names, size/hash, Python/EJS compatibility and archive entries. Complete package generations live outside user media in Application Support. Startup and media requests share dependency acquisition. The runtime retains one generation after importing extraction code; later updates are staged for the next cold launch. Failed or interrupted activation retains the previous confirmed generation. CPython, signed extension modules, QuickJS and FFmpeg cannot be updated this way.
+
+`MediaFileStore` separates its media directory from its private root. Relocation verifies only managed files and never overwrites a different destination file. The bookmark is persisted before old managed copies are removed. Save, rollback and deletion support different filesystem volumes. Storage changes are blocked during imports and unfinished downloads. A missing folder bookmark reports a recoverable Settings error without deleting library records.
 
 The FFmpeg integration is GPL-3.0. Its licensing and source requirements apply to redistribution. Distribution licensing and the corresponding source package need completion before redistributing the app to others.
 
@@ -41,7 +48,7 @@ Core tests, host extractor tests, actual public downloads, and arm64 packaging p
 
 ## Appearance and accent themes
 
-`RootView` retains the existing `appearance` UserDefaults key for System, Light and Dark. `AppTheme` independently persists Neutral, Sage, Lavender, Amber, Ocean or Dynamic through `ThemePreferences` under `accentTheme`. New installations default to Sage. The root shares the theme with all tabs and sheets. Standard text and backgrounds use appearance-dependent semantic colours, not the media accent.
+`RootView` retains the existing `appearance` UserDefaults key for System, Light and Dark. `AppTheme` independently persists Neutral, Sage, Lavender, Amber, Ocean or Dynamic through `ThemePreferences` under `accentTheme`. New installations default to Sage. Shared palettes coordinate text, surfaces and controls, with restrained dark backgrounds. `AppTypography` registers licensed Stack Sans Text/Notch and supplies Dynamic Type-aware SwiftUI and native control fonts. Native chrome remains system-owned. The launcher follows phone appearance rather than a manual choice.
 
 Opening a saved player selects that item for Dynamic. The selection stays when returning to the library or changing tabs. Deleting the selected item clears it. Add Link temporarily previews the inspected artwork, then restores the saved-media selection when its input resets or the sheet closes. Selection is session state, so launching without a selected item uses neutral for Dynamic.
 

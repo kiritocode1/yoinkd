@@ -10,7 +10,7 @@ The primary `AppIcon` set includes the real dark artwork in its `luminosity: dar
 
 Keep `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`. Set `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = AppIconDark` in both target configurations to compile the separate alternate set and generate its plist entry. No include-all-icons setting is required for this named set.
 
-The existing asset catalog and Resources folder registrations include these new files. No individual PNG registration is needed. Leave `CFBundleIcons` and `IYoinksUsesAlternateIconFallback` out of the source `Info.plist`; Xcode generates its icon metadata and does not need the fallback picker.
+The existing asset catalog and Resources folder registrations include these new files. No individual PNG registration is needed. Leave `CFBundleIcons` and `IYoinksUsesAlternateIconFallback` out of the source `Info.plist`; Xcode generates its icon metadata and does not need the alternate-icon fallback.
 
 ## Linux xtool
 
@@ -22,17 +22,17 @@ The step adds both 1024px originals and each appearance's 20, 29, 40 and 60-poin
 
 The primary icon is light. The alternate dictionary key is exactly `AppIconDark`, not `Dark`.
 
-## Explicit selection contract
+## Automatic appearance
 
-Settings shows the icon picker only when `Bundle.main.object(forInfoDictionaryKey: "IYoinksUsesAlternateIconFallback") as? Bool == true`. It calls UIKit only after the user explicitly chooses an icon:
+Settings no longer offers a manual icon picker. For an xtool archive with `IYoinksUsesAlternateIconFallback`, the noninteractive appearance observer checks the phone/window-scene traits on foreground and appearance changes. It uses UIKit's existing alternate-icon API:
 
 - Dark uses `UIApplication.shared.setAlternateIconName("AppIconDark", completionHandler: ...)`.
 - Light uses `UIApplication.shared.setAlternateIconName(nil, completionHandler: ...)`.
-- Check `supportsAlternateIcons`, compare `alternateIconName`, prevent concurrent requests and show any completion error. The completion callback is not guaranteed to run on the main queue.
+- Check `supportsAlternateIcons`, compare `alternateIconName` and prevent concurrent requests. UIKit completion runs through the main actor before another request is allowed.
 
-Do not synchronize the launcher on appearance changes, accent changes or launch. Icon changes can display system confirmation. Read `alternateIconName` for the current selection instead of assuming a request succeeded.
+Phone appearance drives the icon independently of a forced Light/Dark app appearance or accent theme. Icon changes can display UIKit's system confirmation. Read `alternateIconName` rather than assuming a request succeeded.
 
-xtool's loose PNGs do not provide automatic native luminosity switching. Home Screen customization, tinted rendering, alternate-icon support, confirmation and persistence need a phone check. An explicit light choice selects the primary artwork; it does not override system Home Screen effects.
+xtool's loose PNGs do not provide native luminosity switching, so its automatic alternate-icon fallback is active while the app is running or returns to the foreground. It cannot update while the app is not executing. Home Screen customization, tinted rendering, trait changes, confirmation and persistence need a phone check. The fallback does not override system Home Screen effects.
 
 ## Checks
 

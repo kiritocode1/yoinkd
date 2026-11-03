@@ -4,6 +4,7 @@ import YoinksCore
 @MainActor
 struct DownloadsView: View {
     @EnvironmentObject private var queue: DownloadQueue
+    @EnvironmentObject private var theme: AppTheme
     let onAddLink: () -> Void
 
     private var active: [DownloadJob] { queue.jobs.filter { !$0.phase.isTerminal && $0.phase != .queued } }
@@ -15,60 +16,99 @@ struct DownloadsView: View {
                 if let error = queue.restoreError {
                     ContentUnavailableView {
                         Label("Downloads unavailable", systemImage: "exclamationmark.circle")
-                    } description: { Text(error) } actions: {
+                    } description: { Text(error).foregroundStyle(theme.secondaryText) } actions: {
                         Button("Try again") { Task { await queue.restore() } }.buttonStyle(AppPrimaryButtonStyle())
                     }
                 } else if !queue.isReady {
                     ProgressView("Opening downloads...").frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if active.isEmpty && queued.isEmpty {
-                    ContentUnavailableView {
-                        Image(systemName: "arrow.down.circle")
-                            .font(.system(size: 32, weight: .light))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 80, height: 80)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 18).strokeBorder(Color.primary.opacity(0.08))
-                            }
-                            .shadow(color: .black.opacity(0.12), radius: 12, y: 6)
-                            .accessibilityHidden(true)
-                        Text("No active downloads")
-                    } description: { Text("Add a video or audio link to save it on this iPhone.") } actions: {
-                        Button("Add link", systemImage: "plus") { onAddLink() }.buttonStyle(AppPrimaryButtonStyle())
-                        Text("YouTube · Instagram · X")
-                            .font(.caption).foregroundStyle(.secondary)
-                            .padding(.horizontal, 14).padding(.vertical, 8)
-                            .background(AppStyle.controlBackground, in: Capsule())
-                            .padding(.top, 8)
-                    }
+                    emptyDownloads
                 } else {
-                    List {
-                        if !active.isEmpty {
-                            Section("Active (\(active.count))") {
-                                ForEach(active) { DownloadRow(job: $0).listRowBackground(AppStyle.surface) }
-                            }
+                    ScrollView {
+                        LazyVStack(spacing: 20) {
+                            if !active.isEmpty { downloadSection("Active (\(active.count))", jobs: active) }
+                            if !queued.isEmpty { downloadSection("Queued (\(queued.count))", jobs: queued) }
                         }
-                        if !queued.isEmpty {
-                            Section("Queued (\(queued.count))") {
-                                ForEach(queued) { DownloadRow(job: $0).listRowBackground(AppStyle.surface) }
-                            }
-                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
                     }
-                    .listStyle(.insetGrouped)
-                    .scrollContentBackground(.hidden)
                 }
             }
-            .background(AppStyle.background)
+            .foregroundStyle(theme.primaryText)
+            .background(theme.background)
+            .appTabContent(for: .downloads)
+            .appNativeChrome()
             .navigationTitle("Downloads")
-            .navigationBarTitleDisplayMode(.inline)
+            .toolbarTitleDisplayMode(.inlineLarge)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Add link", systemImage: "plus") { onAddLink() }.frame(minWidth: 44, minHeight: 44)
+                    Menu {
+                        Button("yoink!", systemImage: "plus") { onAddLink() }
+                    } label: { Label("Download actions", systemImage: "ellipsis") }
+                    .labelStyle(.iconOnly)
                 }
             }
             .alert("Download state issue", isPresented: Binding(get: { queue.storageError != nil }, set: { if !$0 { queue.storageError = nil } })) {
                 Button("OK", role: .cancel) { queue.storageError = nil }
             } message: { Text(queue.storageError ?? "") }
+        }
+    }
+
+    private var emptyDownloads: some View {
+        ScrollView {
+            VStack(spacing: 22) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 24)
+                        .fill(theme.controlBackground)
+                        .frame(width: 112, height: 112)
+                        .rotationEffect(.degrees(-8))
+                        .offset(x: -15, y: 5)
+                    RoundedRectangle(cornerRadius: 24)
+                        .fill(LinearGradient(colors: [theme.controlBackground, theme.surface], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 112, height: 124)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 24)
+                                .strokeBorder(LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0.03)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 0.75)
+                        }
+                        .appFiniteReflection(trigger: "empty-downloads", cornerRadius: 24)
+                    Image(systemName: "arrow.down").font(.system(size: 42, weight: .light)).foregroundStyle(theme.primaryText)
+                }
+                .accessibilityHidden(true)
+                VStack(spacing: 8) {
+                    Text("No active downloads").font(AppTypography.font(.title2, weight: .semibold))
+                    Text("Add a link to start downloading videos or audio.")
+                        .font(AppTypography.font(.callout)).foregroundStyle(theme.secondaryText)
+                        .multilineTextAlignment(.center)
+                }
+                Button("yoink!", systemImage: "plus") { onAddLink() }
+                    .buttonStyle(AppPrimaryButtonStyle()).controlSize(.large)
+                VStack(spacing: 12) {
+                    HStack(spacing: 14) {
+                        ForEach(SupportedPlatform.allCases, id: \.self) { platform in
+                            PlatformIcon(platform: platform)
+                        }
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("YouTube, Instagram, X, TikTok, and other supported sites")
+                    Text("Supports YouTube, Instagram, X, TikTok, and other supported sites.")
+                        .font(AppTypography.font(.caption)).foregroundStyle(theme.secondaryText).multilineTextAlignment(.center)
+                }
+                .padding(.top, 8)
+            }
+            .frame(maxWidth: 340)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 24)
+            .padding(.top, 56)
+            .padding(.bottom, 24)
+        }
+    }
+
+    private func downloadSection(_ title: String, jobs: [DownloadJob]) -> some View {
+        VStack(spacing: 12) {
+            AppSectionBar(title: title)
+            ForEach(jobs) { job in
+                DownloadRow(job: job, isCard: true)
+            }
         }
     }
 }

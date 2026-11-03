@@ -59,29 +59,58 @@ public struct AccentRGB: Equatable, Sendable {
     }
 }
 
+public struct AccentColors: Equatable, Sendable {
+    public let background: AccentRGB
+    public let surface: AccentRGB
+    public let controlBackground: AccentRGB
+    public let primaryText: AccentRGB
+    public let secondaryText: AccentRGB
+    public let separator: AccentRGB
+    public let accent: AccentRGB
+    public let onAccent: AccentRGB
+
+    fileprivate init(hue: Double, saturation: Double, isDark: Bool) {
+        let background = AccentRGB(hue: hue, saturation: saturation * 0.40, lightness: isDark ? 0.035 : 0.95)
+        let surface = AccentRGB(hue: hue, saturation: saturation * (isDark ? 0.22 : 0.35), lightness: isDark ? 0.07 : 0.98)
+        let controlBackground = AccentRGB(hue: hue, saturation: saturation * (isDark ? 0.20 : 0.36), lightness: isDark ? 0.11 : 0.92)
+        let backgrounds = [background, surface, controlBackground, isDark ? AccentRGB.darkSurface : .lightSurface]
+
+        func readableColor(lightness: Double, saturation: Double) -> AccentRGB {
+            var adjustedLightness = lightness
+            var color = AccentRGB(hue: hue, saturation: saturation, lightness: adjustedLightness)
+            while backgrounds.contains(where: { color.contrast(with: $0) < 4.5 }),
+                  isDark ? adjustedLightness < 1 : adjustedLightness > 0 {
+                adjustedLightness = isDark ? min(1, adjustedLightness + 0.01) : max(0, adjustedLightness - 0.01)
+                color = AccentRGB(hue: hue, saturation: saturation, lightness: adjustedLightness)
+            }
+            return color
+        }
+
+        self.background = background
+        self.surface = surface
+        self.controlBackground = controlBackground
+        primaryText = readableColor(lightness: isDark ? 0.94 : 0.14, saturation: saturation * 0.20)
+        secondaryText = readableColor(lightness: isDark ? 0.68 : 0.40, saturation: saturation * 0.16)
+        separator = AccentRGB(hue: hue, saturation: saturation * 0.20, lightness: isDark ? 0.22 : 0.80)
+        accent = readableColor(lightness: isDark ? 0.68 : 0.38, saturation: saturation)
+        onAccent = accent.contrast(with: .white) >= 4.5 ? .white : .black
+    }
+}
+
 public struct AccentPalette: Equatable, Sendable {
-    public let light: AccentRGB
-    public let dark: AccentRGB
+    public let lightColors: AccentColors
+    public let darkColors: AccentColors
+
+    public var light: AccentRGB { lightColors.accent }
+    public var dark: AccentRGB { darkColors.accent }
 
     public static let neutral = AccentPalette(hue: 0, saturation: 0)
 
     public init(hue: Double, saturation: Double) {
         let safeHue = hue.isFinite ? hue - floor(hue) : 0
         let safeSaturation = saturation.isFinite ? min(0.55, max(0, saturation)) : 0
-        var lightness = 0.38
-        var light = AccentRGB(hue: safeHue, saturation: safeSaturation, lightness: lightness)
-        while light.contrast(with: .lightSurface) < 4.5, lightness > 0.10 {
-            lightness -= 0.01
-            light = AccentRGB(hue: safeHue, saturation: safeSaturation, lightness: lightness)
-        }
-        lightness = 0.68
-        var dark = AccentRGB(hue: safeHue, saturation: safeSaturation, lightness: lightness)
-        while dark.contrast(with: .darkSurface) < 4.5, lightness < 0.90 {
-            lightness += 0.01
-            dark = AccentRGB(hue: safeHue, saturation: safeSaturation, lightness: lightness)
-        }
-        self.light = light
-        self.dark = dark
+        lightColors = AccentColors(hue: safeHue, saturation: safeSaturation, isDark: false)
+        darkColors = AccentColors(hue: safeHue, saturation: safeSaturation, isDark: true)
     }
 }
 

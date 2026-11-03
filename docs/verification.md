@@ -1,5 +1,77 @@
 # Verification results
 
+## yoink'd 0.5.0
+
+The premium corrective plan received human approval in Plannotator. The supplied audio-player, downloads, list-row and sort-control references are pinned in `reference/ui/premium-pass/`. The isolated browser composition loaded both font families and four platform logos; its illustrative search accepted text and cancelled. That preview is not native iPhone evidence.
+
+The release uses shared Stack Sans typography, native search cancellation, a `yoink!` link drawer, all usable source qualities and separate output-format selection. Audio opens an artwork-first sheet with Info/Share and native seeking/volume. Video remains embedded and can use the same player fullscreen. Saved media defaults to the Files-visible app Documents directory, with verified relocation to a bookmarked folder. Pure extraction packages install independently while native runtimes remain bundled.
+
+| Check | Observed result |
+| --- | --- |
+| Core suite | 58 tests passed with zero failures. Includes 15 storage tests, 15 source/output tests and theme contrast/persistence/stale-result coverage. `build/premium-core-tests.log` records the final run. |
+| Files and recovery | Tests cover visible/private directory separation, copy-before-switch, rollback, destination conflicts, unrelated-file preservation, symlink aliases and actual cross-volume save/deletion/rollback using `/dev/shm`. Security-scoped provider behavior still needs iOS. |
+| Host extractor and FFmpeg | 28 tests passed. Real host C/QuickJS and FFmpeg paths cover source selection, explicit audio formats, artwork embedding/sidecars, cancellation, checkpoint recovery and native-probe metadata. `build/premium-extractor-tests.log` records the run. This is not iOS conversion evidence. |
+| Dependency helper | 24 tests passed after native preparation removed bundled pure-package resources. Covers verified wheels, size/hash/path/native payload rejection, compatibility, generation publication/rollback/quarantine, concurrent C control calls and real baseline C activation without network. `build/premium-dependency-tests.log` records the run. |
+| Native probe patch | The generated wrapper equals the clean official archive plus the tracked patch. Host compilation tests include attached artwork, PCM metadata and oversized-image rejection. `build/premium-native-probe-check.log` records the reproducibility check. |
+| Final arm64 build | Passed in 30.84 seconds with SDK 27.2 and minimum iOS 17. Includes the final shared Capture segment modifier and throwing retry/resume callers. `build/premium-release-build-final.log` records the run. |
+| Final delivery IPA | ZIP CRC, version/build, source inclusion, original icons, all 68 Python module mappings, updater bytes, eight static fonts, four SVG/PDF platform logos and Files visibility flags passed. Pure yt-dlp/EJS/certifi payloads are absent. `build/release-check.json` and `build/premium-delivery-check.json` check the copied delivery file. |
+| Independent source reviews | Storage/player, updater and final UI reviews have no remaining critical source findings. Corrected deletion/relocation races, alias/symlink loss risk, player reopening after failed deletion and inconsistent Capture segment sizing. Review records are `.design-system/premium-storage-player-review.md`, `.design-system/premium-updater-review.md` and `.design-system/premium-final-ui-review.md`. |
+| Human implementation review | Approved in Plannotator with no changes requested. The returned decision is recorded in `.plannotator/premium-pass/implementation-decision.json`. This is code-review acceptance, not native runtime or visual verification. |
+| Native UI and runtime | Unverified on the new signed build. No native capture, pixel diff, touch, keyboard/search, audio/video/fullscreen, VoiceOver, folder provider, icon switching or on-phone package update/relaunch check ran. Native tab-label symbol effects may materialize as static tab item images, so visible tab-icon animation remains unverified. |
+
+Delivery: `build/yoinkd-0.5.0.ipa`, version 0.5.0, build 6, unsigned. It has 28,747,490 archive bytes and 76,760,825 unpacked entry bytes. SHA-256 is `e76fb465ff807236dc750bca17c8b1db68b65565727b9252eb55256fc5cf4ea1`. Compared with the checked 0.4.1 archive, it is 2,672,934 bytes smaller. These are ZIP measurements, not installed storage or runtime memory.
+
+The connected iPhone's underlying iDescriptor services report iOS 27.2. No signing certificate was revoked or app uninstalled. The IPA still needs the user's signing/installation workflow before phone verification. The previous nonisolated immutable-RGB colour-provider fix remains intact, but this does not establish crash-free native runtime.
+
+The compiler reports two deprecated API warnings: the native typography bridge's `traitCollectionDidChange` and MPVolumeView's hidden route-button property. There are no build errors. The Linux icon fallback can follow phone traits only while the app executes or returns to the foreground; native Xcode dark-slot rendering is system-owned. Initial extraction-package installation needs connectivity. Downloaded interpreted-code updates and GPL distribution obligations still require separate App Store/licensing review.
+
+## yoink'd 0.4.1
+
+This corrective build replaces the custom tab bar and control shells with native SwiftUI controls. The user installed 0.4.0 and supplied screenshots showing duplicate tabs, small headings and an accent-only palette. Those screenshots are pinned in `reference/ui/native-feedback-*.png`. The corrected same-row Library/search layout received human approval in Plannotator before implementation.
+
+The build uses one native tab bar, native inline-large headings, native toolbar search and menus, native segmented filters with additional padding, and native glass button styles on iOS 26 or newer. iOS 17 through 25 use native bordered controls. Library sorting and grid/list choices persist. Theme selection now coordinates background, surface, control, separator, primary/secondary text and interactive colours. Native glass materials, actual artwork, readability scrims, platform branding and semantic error colours remain system-owned or unchanged.
+
+| Check | Observed result |
+| --- | --- |
+| Focused palette tests | 13 passed, zero failures. Full-palette contrast, distinct curated palettes, neutral fallback, six persisted preferences, premultiplied pixels and stale artwork rejection. |
+| Contrast | Primary text, secondary text and accent meet 4.5:1 against background, surface and control roles for 360 hues at five saturation levels in both appearances. On-accent text also meets 4.5:1. This tests palette math, not native glass compositing. |
+| Existing core suite | All 41 tests passed, zero failures. |
+| Native release build | Final arm64 compilation passed in 18.53 seconds with SDK 27.2 and minimum iOS 17. The final compile includes explicit native search-item ordering. |
+| Colour-provider crash fix | The rebuilt shared colour callback contains RGB selection and UIKit calls, without the inherited executor assertion from the original AsyncRenderer crash. The focused callback disassembly is `.plannotator/native-controls/colour-callback-body.asm`. This does not prove crash-free phone operation. |
+| IPA packaging | Version/build agreement, ZIP CRC, source inclusion, bundled extractor, icons and all 68 Python framework mappings passed. |
+| Source review | No concrete critical source-level regressions found. Existing actions remain connected. `.design-system/native-review.md` records the review and phone-only evidence gaps. |
+| Implementation review | Human-approved in Plannotator with no changes requested. |
+| Native UI and runtime | Unverified for this build. Search expansion/grouping, keyboard cancellation, rapid tab/menu input, transitions, Reduce Motion, Dynamic Type, theme changes and crash-free operation need the newly installed build on the phone. No pixel diff exists. |
+
+The unsigned delivery is `build/yoinkd-0.4.1.ipa`, version 0.4.1, build 5. The archive has 31,420,424 bytes and 85,273,079 unpacked entry bytes. SHA-256 is `2a8369c2cf140fc30455554e3538740d5627e1252082bc3f823c03c80f254cb7`. `build/release-check.json` records the complete package check. Focused test, core-suite and final native build logs are `build/native-controls-theme-tests.log`, `build/native-controls-core-tests.log` and `build/native-controls-release-build-final.log`.
+
+The existing nonisolated, immutable-RGB colour provider remains intact. No model, bundle identifier, media directory or downloader implementation changes belong to this correction. No app was uninstalled, certificate revoked, commit created or code pushed. iDescriptor's underlying device services detect the connected iPhone. The earlier signing attempt required certificate revocation and was cancelled, so this artifact still needs manual signing and installation before phone verification.
+
+## yoink'd 0.4.0
+
+The app display name is `yoink'd`; the GitHub repository is `maynkudu/yoinkd`. The bundle identifier, Core Data store, media directories, target names and background-task identifiers are unchanged. The feature build is 0.4.0, build 4.
+
+The connected iPhone's 0.3.0 crash reports show `EXC_BREAKPOINT` on `com.apple.SwiftUI.AsyncRenderer`. UIKit resolves the dynamic colour provider while Swift checks its inherited main-actor isolation. `AppTheme.appearanceColor` is now explicitly nonisolated and captures only immutable RGB values. Disassembly of the rebuilt arm64 provider contains colour selection and UIKit calls, without the executor assertion from the crash stack. This checks the compiled fix; a successful phone launch is a separate check.
+
+| Check | Observed result |
+| --- | --- |
+| Focused theme tests | 11 passed. Six persisted preferences, palette contrast, monochrome/transparent/malformed fallbacks, premultiplied pixels, repeated selections and obsolete results after selecting the same media again. |
+| Existing core suite | 39 passed, no failures. The existing queue, source-quality, media-file and recovery tests remain passing. |
+| Native release build | arm64 compilation with SDK 27.2 and minimum iOS 17 passed. |
+| IPA packaging | Display-name/version agreement, ZIP CRC, bundled extractor, icons and all 68 Python module framework mappings passed. |
+| Source review | No removed navigation or action handlers found. A proposed nil-artwork cache change was rejected because it would persist transient network failures. Only fetched artwork results are cached. |
+| Implementation review | Human-approved in Plannotator with no changes requested. |
+| Signed phone update | Attempted through the configured xtool account. Stopped when the tool requested revocation of an existing development certificate. No certificate was revoked and no app was uninstalled. |
+| Native runtime and exact visual fidelity | Unverified pending signed installation and device interaction. No final native screenshot or pixel comparison is available. |
+
+The unsigned delivery archive is `build/yoinkd-0.4.0.ipa`, also generated at the existing internal path `xtool/iYoinks.ipa`. `build/release-check.json` records the checked archive hash, sizes and metadata. The supplied visual source remains `reference/ui/proposed.png`. Current task logs and callback disassembly are under `.plannotator/theme-refinement/`.
+
+iDescriptor detects the connected iPhone. This host has no installed Agent Desktop automation, so diagnostic reports were copied read-only using its underlying libimobiledevice services. The native build tool's AppImage launcher also fails on this host; extracting the already-installed xtool 1.24.0 to `/tmp` allows the same tool to build without replacing it or installing dependencies.
+
+## Previous UI and accent checks
+
+The following checks describe the earlier 0.3.0 refinement, not the current artifact.
+
 ## UI and accent themes
 
 The UI and theming refinement builds as iYoinks 0.3.0, build 3, on Arch Linux on 2026-11-02. The plan received human approval through Plannotator. Device verification was explicitly excluded by request. The version, bundle identifier, storage model and extraction services remain unchanged.

@@ -9,6 +9,8 @@ struct IYoinksApp: App {
     @State private var storage = Storage.loading
     @State private var loadRequest = 0
 
+    init() { AppTypography.registerFonts() }
+
     var body: some Scene {
         WindowGroup {
             Group {
@@ -36,6 +38,7 @@ struct IYoinksApp: App {
                 guard !Task.isCancelled else { return }
                 storage = result
             }
+            .task { await ExtractorDependencies.shared.refreshOnLaunch() }
         }
     }
 
@@ -52,10 +55,13 @@ struct IYoinksApp: App {
             guard let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
                 throw CocoaError(.fileNoSuchFile)
             }
-            let files = MediaFileStore(root: support.appendingPathComponent("iYoinks", isDirectory: true))
-            let library = MediaLibrary(context: container.viewContext, storage: MediaStorage(files: files))
+            let mediaStorage = try await MediaStorage.open(root: support.appendingPathComponent("iYoinks", isDirectory: true))
+            let library = MediaLibrary(context: container.viewContext, storage: mediaStorage)
             try await library.restore()
             let queue = DownloadQueue(library: library, appDelegate: appDelegate)
+            library.canChangeMediaFolder = { [weak queue] in
+                queue?.jobs.allSatisfy { $0.phase.isTerminal } ?? false
+            }
             await queue.restore()
             return .ready(container, library, queue)
         } catch {

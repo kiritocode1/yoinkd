@@ -1,7 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum AppTab: Hashable { case library, downloads, history, settings }
+enum AppTab: Int, Hashable, Sendable { case library, downloads, history, settings }
 
 @MainActor
 struct RootView: View {
@@ -11,16 +11,20 @@ struct RootView: View {
     @AppStorage("appearance") private var appearance = AppAppearance.system
     @StateObject private var theme = AppTheme()
     @State private var selectedTab = AppTab.library
+    @State private var tabTransition = AppTabTransition()
     @State private var showsAddLink = false
     @State private var showsImporter = false
 
     var body: some View {
-        nativeTabs
+        tabs
+            .background(theme.background)
+            .foregroundStyle(theme.primaryText)
             .tint(theme.accent)
+            .font(AppTypography.font(.body))
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: theme.palette)
             .preferredColorScheme(appearance.colorScheme)
             .sheet(isPresented: $showsAddLink) {
-                AddLinkView { selectedTab = .downloads }
+                AddLinkView { selectTab(.downloads) }
                     .tint(theme.accent)
                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: theme.palette)
                     .presentationDetents([.large])
@@ -28,7 +32,7 @@ struct RootView: View {
             .fileImporter(isPresented: $showsImporter, allowedContentTypes: [.movie, .audio], allowsMultipleSelection: true) { result in
                 switch result {
                 case .success(let urls):
-                    selectedTab = .library
+                    selectTab(.library)
                     Task { await library.importFiles(urls) }
                 case .failure(let error):
                     library.errorMessage = error.localizedDescription
@@ -40,39 +44,46 @@ struct RootView: View {
                 Text(library.errorMessage ?? "")
             }
             .onChange(of: Set(library.details.keys)) { _, ids in theme.retainSelection(in: ids) }
+            .environment(\.appTabTransition, tabTransition)
             .environmentObject(theme)
+            .background(AppIconAppearanceObserver().frame(width: 0, height: 0))
     }
 
-    @ViewBuilder
-    private var nativeTabs: some View {
-        if #available(iOS 18.0, *) {
-            TabView(selection: $selectedTab) {
-                Tab("Library", systemImage: "rectangle.stack", value: AppTab.library) {
-                    LibraryView(onImport: { showsImporter = true }, onAddLink: { showsAddLink = true })
-                }
-                Tab("Downloads", systemImage: "arrow.down.circle", value: AppTab.downloads) {
-                    DownloadsView(onAddLink: { showsAddLink = true })
-                }
+    private var tabs: some View {
+        TabView(selection: Binding(get: { selectedTab }, set: selectTab)) {
+            LibraryView(onImport: { showsImporter = true }, onAddLink: { showsAddLink = true })
+                .tabItem { tabLabel("Library", systemImage: "folder") }
+                .tag(AppTab.library)
+            DownloadsView(onAddLink: { showsAddLink = true })
+                .tabItem { tabLabel("Downloads", systemImage: "arrow.down.to.line") }
                 .badge(queue.activeCount)
-                Tab("History", systemImage: "clock.arrow.circlepath", value: AppTab.history) {
-                    HistoryView()
-                }
-                Tab("Settings", systemImage: "gearshape", value: AppTab.settings) {
-                    SettingsView(appearance: $appearance)
-                }
-            }
-        } else {
-            TabView(selection: $selectedTab) {
-                LibraryView(onImport: { showsImporter = true }, onAddLink: { showsAddLink = true })
-                    .tabItem { Label("Library", systemImage: "rectangle.stack") }.tag(AppTab.library)
-                DownloadsView(onAddLink: { showsAddLink = true })
-                    .tabItem { Label("Downloads", systemImage: "arrow.down.circle") }.tag(AppTab.downloads)
-                    .badge(queue.activeCount)
-                HistoryView()
-                    .tabItem { Label("History", systemImage: "clock.arrow.circlepath") }.tag(AppTab.history)
-                SettingsView(appearance: $appearance)
-                    .tabItem { Label("Settings", systemImage: "gearshape") }.tag(AppTab.settings)
+                .tag(AppTab.downloads)
+            HistoryView()
+                .tabItem { tabLabel("History", systemImage: "clock") }
+                .tag(AppTab.history)
+            SettingsView(appearance: $appearance)
+                .tabItem { tabLabel("Settings", systemImage: "gearshape") }
+                .tag(AppTab.settings)
+        }
+    }
+
+    private func tabLabel(_ title: String, systemImage: String) -> some View {
+        Label {
+            Text(title)
+        } icon: {
+            if reduceMotion {
+                Image(systemName: systemImage)
+            } else {
+                Image(systemName: systemImage)
+                    .symbolEffect(.bounce, value: selectedTab)
             }
         }
+    }
+
+    private func selectTab(_ selected: AppTab) {
+        guard selected != selectedTab else { return }
+        tabTransition = AppTabTransition(selected: selected,
+                                         generation: tabTransition.generation + 1)
+        selectedTab = selected
     }
 }

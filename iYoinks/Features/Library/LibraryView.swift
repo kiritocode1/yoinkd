@@ -3,26 +3,34 @@ import SwiftUI
 import YoinksCore
 
 private enum LibraryFilter: String, CaseIterable { case all = "All", video = "Video", audio = "Audio" }
-private enum LibrarySort: String, CaseIterable { case newest = "Newest first", title = "Title" }
+private enum LibrarySort: String, CaseIterable {
+    case newest = "Newest first", oldest = "Oldest first", title = "Title", reverseTitle = "Title, Z to A"
+}
+private enum LibraryDisplay: String, CaseIterable { case grid = "Grid", list = "List" }
 
 @MainActor
 struct LibraryView: View {
     @EnvironmentObject private var library: MediaLibrary
+    @EnvironmentObject private var theme: AppTheme
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @FetchRequest(sortDescriptors: [NSSortDescriptor(keyPath: \LibraryItem.addedAt, ascending: false)]) private var items: FetchedResults<LibraryItem>
     let onImport: () -> Void
     let onAddLink: () -> Void
     @State private var search = ""
+    @State private var showsSearch = false
     @State private var filter = LibraryFilter.all
-    @State private var sort = LibrarySort.newest
+    @AppStorage("librarySort") private var sort = LibrarySort.newest
+    @AppStorage("libraryDisplay") private var display = LibraryDisplay.grid
     @State private var renameItem: LibraryItem?
     @State private var renameText = ""
     @State private var showsRename = false
     @State private var deleteItem: LibraryItem?
+    @State private var audioItem: LibraryItem?
+    @State private var videoItem: LibraryItem?
 
     private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 12), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2)
+        [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 280 : 160), spacing: 12)]
     }
 
     private var visibleItems: [LibraryItem] {
@@ -30,7 +38,12 @@ struct LibraryView: View {
             (filter == .all || $0.mediaKind?.rawValue == filter.rawValue.lowercased()) &&
             (search.isEmpty || $0.title.localizedCaseInsensitiveContains(search))
         }
-        return sort == .title ? filtered.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending } : filtered
+        switch sort {
+        case .newest: return filtered
+        case .oldest: return Array(filtered.reversed())
+        case .title: return filtered.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        case .reverseTitle: return filtered.sorted { $0.title.localizedStandardCompare($1.title) == .orderedDescending }
+        }
     }
 
     private var summary: String? {
@@ -41,17 +54,17 @@ struct LibraryView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if let summary {
-                    Text(summary).font(.caption).foregroundStyle(.secondary)
+                if !showsSearch, let summary {
+                    Text(summary).font(AppTypography.font(.subheadline)).foregroundStyle(theme.secondaryText)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20).padding(.top, 8).padding(.bottom, 12)
+                        .padding(.horizontal, 20).padding(.top, 8)
                 }
                 if let progress = library.importProgress {
                     HStack(spacing: 12) {
                         ProgressView()
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("Importing \(progress.name)").font(.subheadline).lineLimit(2)
-                            Text("\(progress.completed) of \(progress.total) files processed").font(.caption).foregroundStyle(.secondary)
+                            Text("Importing \(progress.name)").font(AppTypography.font(.subheadline)).lineLimit(2)
+                            Text("\(progress.completed) of \(progress.total) files processed").font(AppTypography.font(.caption)).foregroundStyle(theme.secondaryText)
                         }
                         Spacer()
                     }
@@ -63,74 +76,108 @@ struct LibraryView: View {
                         AppBrand.image(for: colorScheme).resizable().scaledToFit().frame(width: 80, height: 80)
                         Text("No saved media")
                     } description: {
-                        Text("Import a video or audio file, or add a direct media link.")
+                        Text("Import a video or audio file, or add a direct media link.").foregroundStyle(theme.secondaryText)
                     } actions: {
                         Button("Import files", systemImage: "folder") { onImport() }
                             .buttonStyle(AppPrimaryButtonStyle()).disabled(library.importProgress != nil)
-                        Button("Add link", systemImage: "link") { onAddLink() }.buttonStyle(AppSecondaryButtonStyle())
+                        Button("yoink!", systemImage: "link") { onAddLink() }.buttonStyle(AppSecondaryButtonStyle())
                     }
                 } else {
-                    ScrollView {
-                        VStack(spacing: 12) {
-                            AppPillPicker(label: "Media type", options: LibraryFilter.allCases, selection: $filter, title: { $0.rawValue })
-                            if visibleItems.isEmpty {
-                                ContentUnavailableView {
-                                    Label("No matching media", systemImage: "magnifyingglass")
-                                } description: {
-                                    Text("Try another name or media type.")
+                    Picker("Media type", selection: $filter) {
+                        ForEach(LibraryFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }
+                    .appSegmentedControl()
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
+                    if visibleItems.isEmpty {
+                        ContentUnavailableView {
+                            Label("No matching media", systemImage: "magnifyingglass")
+                        } description: {
+                            Text("Try another name or media type.").foregroundStyle(theme.secondaryText)
+                        }
+                    } else if display == .list {
+                        List {
+                            ForEach(visibleItems, id: \.objectID) { item in
+                                Button { openMedia(item) } label: {
+                                    LibraryRow(item: item, isList: true, metadata: metadata(item))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .contentShape(Rectangle())
                                 }
-                            } else {
-                                LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-                                    ForEach(visibleItems, id: \.objectID) { item in
-                                        VStack(alignment: .leading, spacing: 0) {
-                                            NavigationLink { MediaDetailView(item: item) } label: { LibraryRow(item: item) }
-                                                .buttonStyle(.plain)
-                                            HStack(alignment: .top, spacing: 4) {
-                                                Text(metadata(item)).font(.caption).foregroundStyle(.secondary)
-                                                    .fixedSize(horizontal: false, vertical: true)
-                                                    .padding(.top, 6)
-                                                Spacer(minLength: 0)
-                                                Menu { itemActions(item) } label: {
-                                                    Image(systemName: "ellipsis")
-                                                        .padding(.top, 6)
-                                                        .frame(width: 44, height: 44, alignment: .top)
-                                                        .contentShape(Rectangle())
-                                                }
-                                                .buttonStyle(.borderless)
-                                                .foregroundStyle(.secondary)
-                                                .accessibilityLabel("Actions for \(item.title)")
-                                            }
+                                .buttonStyle(.plain)
+                                .contextMenu { itemActions(item) }
+                                .listRowBackground(Color.clear)
+                                .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 12, trailing: 20))
+                                .listRowSeparatorTint(theme.separator)
+                            }
+                        }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
+                        .scrollDismissesKeyboard(.interactively)
+                    } else {
+                        ScrollView {
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
+                                ForEach(visibleItems, id: \.objectID) { item in
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Button { openMedia(item) } label: { LibraryRow(item: item) }
+                                            .buttonStyle(.plain)
+                                            .contextMenu { itemActions(item) }
+                                        HStack(spacing: 8) {
+                                            Text(metadata(item)).font(AppTypography.font(.caption)).foregroundStyle(theme.secondaryText)
+                                                .fixedSize(horizontal: false, vertical: true)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                            itemMenu(item)
                                         }
-                                        .contextMenu { itemActions(item) }
                                     }
                                 }
                             }
+                            .padding(.horizontal, 20).padding(.bottom, 20)
                         }
-                        .padding(.horizontal, 20).padding(.bottom, 24)
+                        .scrollDismissesKeyboard(.interactively)
                     }
                 }
             }
-            .background(AppStyle.background)
-            .navigationTitle("Library")
-            .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search saved media")
+            .foregroundStyle(theme.primaryText)
+            .background(theme.background)
+            .appTabContent(for: .library)
+            .appNativeChrome()
+            .navigationTitle(showsSearch ? "" : "Library")
+            .toolbarTitleDisplayMode(.inlineLarge)
+            .appToolbarSearch(text: $search, isPresented: $showsSearch, prompt: "Search saved media")
+            .navigationDestination(item: $videoItem) { MediaDetailView(item: $0) }
+            .sheet(item: $audioItem) { item in
+                MediaDetailView(item: item)
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
+            }
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if !items.isEmpty {
+                if !showsSearch {
+                    ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Picker("Sort by", selection: $sort) {
                                 ForEach(LibrarySort.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                             }
-                        } label: { Image(systemName: "line.3.horizontal.decrease").frame(minWidth: 44, minHeight: 44) }
-                        .accessibilityLabel("Sort library")
+                            Picker("Display", selection: $display) {
+                                ForEach(LibraryDisplay.allCases, id: \.self) { option in
+                                    Label(option.rawValue, systemImage: option == .grid ? "square.grid.2x2" : "list.bullet").tag(option)
+                                }
+                            }
+                        } label: {
+                            SortIcon().stroke(style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                                .frame(width: 24, height: 24)
+                        }
+                        .accessibilityLabel("Sort and display")
                     }
+                    if #available(iOS 26, *) { ToolbarSpacer(.fixed, placement: .topBarTrailing) }
+                }
+                if #available(iOS 26, *) {
+                    DefaultToolbarItem(kind: .search, placement: .topBarTrailing)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button("Import files", systemImage: "folder") { onImport() }.disabled(library.importProgress != nil)
-                        Button("Add link", systemImage: "link") { onAddLink() }
-                    } label: { Image(systemName: "plus").frame(minWidth: 44, minHeight: 44) }
-                    .accessibilityLabel("Add media")
+                        Button("yoink!", systemImage: "link") { onAddLink() }
+                    } label: { Label("Add media", systemImage: "ellipsis") }
+                    .labelStyle(.iconOnly)
                 }
             }
             .alert("Rename media", isPresented: $showsRename) {
@@ -150,14 +197,26 @@ struct LibraryView: View {
                         do { try await library.delete(item) } catch { library.errorMessage = error.localizedDescription }
                     }
                 }
-            } message: { Text("This removes the saved copy from iYoinks.") }
+            } message: { Text("This removes the saved copy from yoink'd.") }
         }
+    }
+
+    private func openMedia(_ item: LibraryItem) {
+        showsSearch = false
+        if item.mediaKind == .audio { audioItem = item }
+        else { videoItem = item }
     }
 
     private func metadata(_ item: LibraryItem) -> String {
         let kind = item.mediaKind == .audio ? "Audio" : "Video"
         guard let details = library.details[item.id] else { return kind }
         return "\(kind) · \(MediaPresentation.bytes(details.byteCount))"
+    }
+
+    private func itemMenu(_ item: LibraryItem) -> some View {
+        Menu { itemActions(item) } label: { Label("Actions for \(item.title)", systemImage: "ellipsis") }
+            .labelStyle(.iconOnly)
+            .buttonStyle(AppCompactButtonStyle())
     }
 
     @ViewBuilder

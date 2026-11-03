@@ -66,7 +66,7 @@ def check(path):
         names = set(archive.namelist())
         assert len(names) == len(archive.namelist()), "Duplicate IPA entries"
         info = plistlib.loads(archive.read(prefix + "Info.plist"))
-        for key in ("CFBundleShortVersionString", "CFBundleVersion", "MinimumOSVersion", "BGTaskSchedulerPermittedIdentifiers", "UIBackgroundModes"):
+        for key in ("CFBundleDisplayName", "CFBundleName", "CFBundleShortVersionString", "CFBundleVersion", "MinimumOSVersion", "BGTaskSchedulerPermittedIdentifiers", "UIBackgroundModes", "UIFileSharingEnabled", "LSSupportsOpeningDocumentsInPlace"):
             assert info[key] == source_info[key], key
         assert info["CFBundleIdentifier"] == "com.maynkudu.iyoinks"
         assert info["CFBundlePackageType"] == "APPL"
@@ -99,9 +99,19 @@ def check(path):
         light_brand = archive.read(resource_root + "BrandMarkLight.png")
         assert light_brand == (PROJECT / "iYoinks/Resources/BrandMarkLight.png").read_bytes()
         icons.check_png(light_brand, 512)
-        for relative in ("Python/lib/python3.15/encodings/__init__.py", "Extractor/yt_dlp/__init__.py",
-                         "Extractor/yt_dlp_ejs/__init__.py", "Extractor/certifi/cacert.pem", "Legal/ThirdPartyNotices.txt"):
+        for relative in ("Python/lib/python3.15/encodings/__init__.py", "Extractor/iyoinks_dependencies.py",
+                         "Extractor/dependencies.json", "Legal/ThirdPartyNotices.txt"):
             assert resource_root + relative in names, relative
+        for relative in ("Extractor/iyoinks_dependencies.py", "Extractor/dependencies.json"):
+            assert archive.read(resource_root + relative) == (PROJECT / "iYoinks/Resources" / relative).read_bytes(), relative
+        for folder in ("Fonts", "PlatformLogos"):
+            sources = sorted((PROJECT / "iYoinks/Resources" / folder).glob("*"))
+            assert sources, folder
+            for source in sources:
+                assert archive.read(resource_root + folder + "/" + source.name) == source.read_bytes(), source.name
+        for module in ("yt_dlp", "yt_dlp_ejs", "certifi"):
+            assert not any(name.startswith(resource_root + "Extractor/" + module + "/")
+                           or name.startswith(resource_root + "Extractor/" + module + "-") for name in names), "Pure package payload remains bundled"
         assert not any(name.endswith(".so") or "/__pycache__/" in name for name in names)
 
         expected = PROJECT / "Packages/YoinksExtractor/Vendor/Python.xcframework/ios-arm64/lib-arm64/python3.15/lib-dynload"
@@ -132,11 +142,15 @@ def check(path):
     return {
         "project": project_check.check(), "archive": str(path.resolve()),
         "version": info["CFBundleShortVersionString"], "build": info["CFBundleVersion"],
+        "display_name": info["CFBundleDisplayName"], "bundle_identifier": info["CFBundleIdentifier"],
         "archive_size_bytes": path.stat().st_size, "unpacked_size_bytes": unpacked_bytes,
         "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
         "architecture": "arm64", "minimum_ios": executable["minimum"], "linked_sdk": executable["sdk"],
         "python_module_frameworks": len(modules), "python_framework_mappings": "passed", "zip_crc": "passed",
         "branding_matches_source": True, "bundled_extractor_matches_source": True,
+        "runtime_dependency_control_matches_source": True, "pure_package_payloads": "absent",
+        "typography_and_logo_resources": "passed; eight static fonts and four SVG/PDF logos match source",
+        "files_visibility": "passed; file sharing and opening documents in place enabled",
         "launcher_icon_pngs": "passed; both masters and eight sizes per appearance are opaque RGB",
         "alternate_icon_name": icons.ALTERNATE_NAME,
         "alternate_icon_fallback_flag": info[icons.FALLBACK_KEY],
