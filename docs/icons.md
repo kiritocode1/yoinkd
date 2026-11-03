@@ -1,8 +1,8 @@
 # Light and dark icons
 
-The supplied `reference/ui/light-icon.png` stays unchanged. `AppIcon.appiconset/AppIcon.png` composites it over white, then resizes it to 1024x1024 RGB with Lanczos filtering. `Resources/BrandMarkLight.png` resizes the supplied transparent artwork to 512x512 without flattening its alpha channel.
+The supplied `reference/ui/light-icon.png` stays unchanged. `AppIcon.appiconset/AppIcon.png` composites it over white, then resizes it to 1024x1024 RGB with Lanczos filtering. `AppResources/BrandMarkLight.png` resizes the supplied transparent artwork to 512x512 without flattening its alpha channel.
 
-The original dark launcher PNG is preserved byte-for-byte as `AppIcon.appiconset/AppIconDark.png`. The separate `AppIconDark.appiconset` uses the same bytes. `Resources/BrandMark.png` stays unchanged.
+The original dark launcher PNG is preserved byte-for-byte as `AppIcon.appiconset/AppIconDark.png`. The separate `AppIconDark.appiconset` uses the same bytes. `AppResources/BrandMark.png` stays unchanged.
 
 ## Xcode
 
@@ -10,7 +10,7 @@ The primary `AppIcon` set includes the real dark artwork in its `luminosity: dar
 
 Keep `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`. Set `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = AppIconDark` in both target configurations to compile the separate alternate set and generate its plist entry. No include-all-icons setting is required for this named set.
 
-The existing asset catalog and Resources folder registrations include these new files. No individual PNG registration is needed. Leave `CFBundleIcons` and `IYoinksUsesAlternateIconFallback` out of the source `Info.plist`; Xcode generates its icon metadata and does not need the alternate-icon fallback.
+The existing asset catalog and AppResources folder registrations include these new files. No individual PNG registration is needed. Leave `CFBundleIcons` and `IYoinksUsesAlternateIconFallback` out of the source `Info.plist`; Xcode generates its icon metadata and does not need the alternate-icon fallback.
 
 ## Linux xtool
 

@@ -17,7 +17,7 @@ import zipfile
 PROJECT = Path(__file__).resolve().parent.parent
 SCRIPTS = PROJECT / "scripts"
 MANIFEST = SCRIPTS / "native-dependencies.json"
-RESOURCES = PROJECT / "iYoinks/Resources"
+RESOURCES = PROJECT / "iYoinks/AppResources"
 
 
 def digest(path):

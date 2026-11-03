@@ -32,7 +32,7 @@ def set_install_name(binary, name):
 
 
 def package_app(app, project, sdk, arch):
-    resources = list(app.glob("**/Resources/Extractor/iyoinks_extract.py"))
+    resources = list(app.glob("**/AppResources/Extractor/iyoinks_extract.py"))
     if len(resources) != 1:
         raise ValueError("The app must contain exactly one bundled extractor.")
     resource_root = resources[0].parent.parent
@@ -98,7 +98,7 @@ def package_app(app, project, sdk, arch):
         directory = python_framework / name
         if directory.is_dir(): shutil.rmtree(directory)
     if any(resource_root.rglob("*.so")):
-        raise ValueError("Unpackaged Python binary modules remain in Resources.")
+        raise ValueError("Unpackaged Python binary modules remain in AppResources.")
     return count
 
 

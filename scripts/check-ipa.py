@@ -66,7 +66,7 @@ def check(path):
         names = set(archive.namelist())
         assert len(names) == len(archive.namelist()), "Duplicate IPA entries"
         info = plistlib.loads(archive.read(prefix + "Info.plist"))
-        for key in ("CFBundleDisplayName", "CFBundleName", "CFBundleShortVersionString", "CFBundleVersion", "MinimumOSVersion", "BGTaskSchedulerPermittedIdentifiers", "UIBackgroundModes", "UIFileSharingEnabled", "LSSupportsOpeningDocumentsInPlace"):
+        for key in ("CFBundleDisplayName", "CFBundleName", "CFBundleShortVersionString", "CFBundleVersion", "MinimumOSVersion", "BGTaskSchedulerPermittedIdentifiers", "UIBackgroundModes", "UIFileSharingEnabled", "LSSupportsOpeningDocumentsInPlace", "CFBundleURLTypes"):
             assert info[key] == source_info[key], key
         assert info["CFBundleIdentifier"] == "com.maynkudu.iyoinks"
         assert info["CFBundlePackageType"] == "APPL"
@@ -91,21 +91,21 @@ def check(path):
             for points, base in zip(icons.ICON_POINTS, icons.icon_files(icon_name)):
                 for scale in icons.ICON_SCALES:
                     icons.check_png(archive.read(prefix + f"{base}@{scale}x.png"), points * scale, opaque=True)
-        scripts = [name for name in names if name.endswith("/Resources/Extractor/iyoinks_extract.py")]
+        scripts = [name for name in names if name.endswith("/AppResources/Extractor/iyoinks_extract.py")]
         assert len(scripts) == 1
         resource_root = scripts[0].removesuffix("Extractor/iyoinks_extract.py")
-        assert archive.read(scripts[0]) == (PROJECT / "iYoinks/Resources/Extractor/iyoinks_extract.py").read_bytes()
-        assert archive.read(resource_root + "BrandMark.png") == (PROJECT / "iYoinks/Resources/BrandMark.png").read_bytes()
+        assert archive.read(scripts[0]) == (PROJECT / "iYoinks/AppResources/Extractor/iyoinks_extract.py").read_bytes()
+        assert archive.read(resource_root + "BrandMark.png") == (PROJECT / "iYoinks/AppResources/BrandMark.png").read_bytes()
         light_brand = archive.read(resource_root + "BrandMarkLight.png")
-        assert light_brand == (PROJECT / "iYoinks/Resources/BrandMarkLight.png").read_bytes()
+        assert light_brand == (PROJECT / "iYoinks/AppResources/BrandMarkLight.png").read_bytes()
         icons.check_png(light_brand, 512)
         for relative in ("Python/lib/python3.15/encodings/__init__.py", "Extractor/iyoinks_dependencies.py",
                          "Extractor/dependencies.json", "Legal/ThirdPartyNotices.txt"):
             assert resource_root + relative in names, relative
         for relative in ("Extractor/iyoinks_dependencies.py", "Extractor/dependencies.json"):
-            assert archive.read(resource_root + relative) == (PROJECT / "iYoinks/Resources" / relative).read_bytes(), relative
+            assert archive.read(resource_root + relative) == (PROJECT / "iYoinks/AppResources" / relative).read_bytes(), relative
         for folder in ("Fonts", "PlatformLogos"):
-            sources = sorted((PROJECT / "iYoinks/Resources" / folder).glob("*"))
+            sources = sorted((PROJECT / "iYoinks/AppResources" / folder).glob("*"))
             assert sources, folder
             for source in sources:
                 assert archive.read(resource_root + folder + "/" + source.name) == source.read_bytes(), source.name

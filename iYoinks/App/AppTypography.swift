@@ -12,7 +12,7 @@ enum AppTypography {
         for family in ["StackSansText", "StackSansNotch"] {
             for weight in ["Regular", "Medium", "SemiBold", "Bold"] {
                 let name = "\(family)-\(weight)"
-                if let url = resourceBundle.url(forResource: name, withExtension: "ttf", subdirectory: "Resources/Fonts") {
+                if let url = resourceBundle.url(forResource: name, withExtension: "ttf", subdirectory: "AppResources/Fonts") {
                     CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
                 }
             }

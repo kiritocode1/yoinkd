@@ -8,6 +8,8 @@ struct IYoinksApp: App {
     @UIApplicationDelegateAdaptor(IYoinksAppDelegate.self) private var appDelegate
     @State private var storage = Storage.loading
     @State private var loadRequest = 0
+    /// Held here because a `yoinkd://add` link can arrive while the library is still opening.
+    @State private var pendingCapture: CaptureRequest?
 
     init() { AppTypography.registerFonts() }
 
@@ -18,7 +20,7 @@ struct IYoinksApp: App {
                 case .loading:
                     ProgressView("Opening library")
                 case .ready(let container, let library, let queue):
-                    RootView()
+                    RootView(pendingCapture: $pendingCapture)
                         .environment(\.managedObjectContext, container.viewContext)
                         .environmentObject(library)
                         .environmentObject(queue)
@@ -39,6 +41,9 @@ struct IYoinksApp: App {
                 storage = result
             }
             .task { await ExtractorDependencies.shared.refreshOnLaunch() }
+            .onOpenURL { url in
+                if let request = CaptureRequest(url: url) { pendingCapture = request }
+            }
         }
     }
 

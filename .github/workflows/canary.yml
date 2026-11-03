@@ -1,0 +1,61 @@
+name: Canary
+
+# Runs the extractor against real public links every night, with the pinned yt-dlp baseline and with
+# the latest releases that phones download on their own. A regression opens or updates an issue.
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  canary:
+    name: Canary (${{ matrix.packages }} yt-dlp)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        packages: [pinned, latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Cache pinned native dependencies
+        uses: actions/cache@v4
+        with:
+          path: .cache/native-dependencies
+          key: native-${{ hashFiles('scripts/native-dependencies.json', 'scripts/prepare-native.py', 'scripts/patches/*') }}
+      - name: Prepare native dependencies
+        run: python scripts/prepare-native.py
+      - name: Install FFmpeg
+        run: brew list ffmpeg >/dev/null 2>&1 || brew install ffmpeg
+      - name: Use the latest yt-dlp, EJS and certifi
+        if: matrix.packages == 'latest'
+        run: |
+          python -m pip install --no-deps --target "$RUNNER_TEMP/latest" yt-dlp yt-dlp-ejs certifi
+          echo "YOINKD_HOST_PACKAGES=$RUNNER_TEMP/latest" >> "$GITHUB_ENV"
+      - name: Run canary
+        run: python scripts/canary.py --download --output "canary-${{ matrix.packages }}.json"
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-${{ matrix.packages }}
+          path: canary-${{ matrix.packages }}.json
+          if-no-files-found: ignore
+      - name: Report regression
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: "Canary regression (${{ matrix.packages }} yt-dlp)"
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          summary=$(python -c "import json,sys; r=json.load(open(sys.argv[1])); print(f\"yt-dlp {r['yt_dlp']}: {', '.join(r['regressions']) or 'no report'}\")" "canary-${{ matrix.packages }}.json" 2>/dev/null || echo "The canary did not produce a report.")
+          body=$(printf '%s\n\nRun: %s' "$summary" "$RUN")
+          existing=$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then gh issue comment "$existing" --body "$body"; else gh issue create --title "$TITLE" --body "$body"; fi
