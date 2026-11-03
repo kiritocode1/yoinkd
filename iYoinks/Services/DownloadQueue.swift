@@ -76,7 +76,7 @@ final class DownloadQueue: ObservableObject {
         do {
             let snapshot = try await journal.load()
             if snapshot.discardedJobCount > 0 {
-                Self.logger.error("Dropped \(snapshot.discardedJobCount, privacy: .public) unreadable jobs from the queue journal")
+                Self.logger.error("Dropped \(snapshot.discardedJobCount, privacy: .public) unreadable jobs from the queue journal. The original is kept at \(self.journal.discardedURL.lastPathComponent, privacy: .public).")
             }
             jobs = snapshot.jobs
             revision = snapshot.revision

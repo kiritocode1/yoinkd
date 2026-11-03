@@ -119,18 +119,29 @@ private extension DownloadJob {
 /// Writes complete snapshots atomically and refuses a stale concurrent write.
 public actor DownloadJournal {
     private let url: URL
+    /// The original journal, kept when a load drops jobs that the next save would otherwise erase.
+    public nonisolated let discardedURL: URL
     private var latestRevision: UInt64 = 0
 
-    public init(url: URL) { self.url = url }
+    public init(url: URL) {
+        self.url = url
+        discardedURL = url.appendingPathExtension("discarded")
+    }
 
-    /// Throws only when the file itself is unreadable or from an unknown version.
-    /// Individual bad jobs are dropped and counted in `discardedJobCount`.
+    /// Throws only when the file itself is unreadable, from an unknown version, or its dropped jobs
+    /// could not be backed up. Individual bad jobs are dropped and counted in `discardedJobCount`,
+    /// and the original file is copied to `discardedURL` first.
     public func load() throws -> DownloadSnapshot {
         guard FileManager.default.fileExists(atPath: url.path) else {
             return DownloadSnapshot(revision: 0, jobs: [])
         }
-        let snapshot = try JSONDecoder().decode(DownloadSnapshot.self, from: Data(contentsOf: url))
+        let data = try Data(contentsOf: url)
+        let snapshot = try JSONDecoder().decode(DownloadSnapshot.self, from: data)
         guard snapshot.version == 1 else { throw CocoaError(.fileReadCorruptFile) }
+        if snapshot.discardedJobCount > 0 {
+            // Throwing here keeps the queue closed, so nothing overwrites the only copy.
+            try data.write(to: discardedURL, options: .atomic)
+        }
         latestRevision = snapshot.revision
         return snapshot
     }

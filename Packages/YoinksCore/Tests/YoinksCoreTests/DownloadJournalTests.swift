@@ -50,12 +50,33 @@ struct DownloadJournalTests {
             entry(UUID().uuidString, extra: #","expectedBytes":0"#),
             entry(good.id.uuidString)
         ]
-        try Data(#"{"version":1,"revision":7,"jobs":[\#(jobs.joined(separator: ","))]}"#.utf8).write(to: url)
+        let original = Data(#"{"version":1,"revision":7,"jobs":[\#(jobs.joined(separator: ","))]}"#.utf8)
+        try original.write(to: url)
 
-        let restored = try await DownloadJournal(url: url).load()
+        let journal = DownloadJournal(url: url)
+        let restored = try await journal.load()
         #expect(restored.jobs == [good])
         #expect(restored.discardedJobCount == 5)
         #expect(restored.revision == 7)
+
+        // The queue saves right after restoring; the dropped entries must survive that save.
+        try await journal.save(DownloadSnapshot(revision: 8, jobs: restored.jobs))
+        #expect(try Data(contentsOf: journal.discardedURL) == original)
+    }
+
+    @Test func failedBackupKeepsTheOriginalJournalAndRefusesToLoad() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("queue.json")
+        let original = Data(#"{"version":1,"revision":1,"jobs":[{"id":"bad"}]}"#.utf8)
+        try original.write(to: url)
+        let journal = DownloadJournal(url: url)
+        // A directory where the backup file belongs makes the backup write fail.
+        try FileManager.default.createDirectory(at: journal.discardedURL, withIntermediateDirectories: true)
+
+        await #expect(throws: (any Error).self) { try await journal.load() }
+        #expect(try Data(contentsOf: url) == original)
     }
 
     @Test func unknownJournalVersionIsStillRejected() async throws {
