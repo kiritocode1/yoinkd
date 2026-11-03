@@ -101,6 +101,63 @@ class DependencyTests(unittest.TestCase):
     def call(self, action, **values):
         return json.loads(self.helper.run(json.dumps({"action": action, "root": str(self.root), **values})))
 
+    def test_snapshot_creates_private_directory_through_parent_alias(self):
+        private = self.root / "private" / "var"
+        private.mkdir(parents=True)
+        alias = self.root / "var"
+        alias.symlink_to(private, target_is_directory=True)
+        suffix = Path("Library/Application Support/ExtractorDependencies")
+        result = self.call("snapshot", root=str(alias / suffix))
+        self.assertTrue(result["ok"], result.get("error"))
+        self.assertEqual(self.helper.root_directory(str(alias / suffix)), private / suffix)
+        self.assertTrue((private / suffix / "state.json").is_file())
+        self.assertTrue((private / suffix / "downloads").is_dir())
+        self.assertTrue((private / suffix / "generations").is_dir())
+
+    def test_parent_alias_and_canonical_path_share_generation_and_activation(self):
+        alias = self.root / "var"
+        alias.symlink_to(self.root, target_is_directory=True)
+        self.root = self.helper.root_directory(str(self.root / "ExtractorDependencies"))
+        aliased_root = alias / "ExtractorDependencies"
+        installed = self.call("install", root=str(aliased_root), entries=self.wheels())
+        self.assertTrue(installed["ok"], installed.get("error"))
+        identifier = installed["result"]["manifest"]["generation"]
+        configured = self.call("configure", root=str(aliased_root))
+        self.assertTrue(configured["ok"], configured.get("error"))
+        self.assertEqual(Path(configured["result"]["path"]), self.root / "generations" / identifier / "packages")
+        self.assertTrue(self.call("begin", root=str(aliased_root))["ok"])
+        state = self.call("snapshot")["result"]["state"]
+        self.assertEqual(state["trial"], identifier)
+        self.assertFalse(state.get("rejected"))
+        self.assertTrue(self.call("confirm")["ok"])
+        aliased = self.call("snapshot", root=str(aliased_root))
+        self.assertEqual(aliased, self.call("snapshot"))
+        self.assertEqual(aliased["result"]["state"]["current"], identifier)
+        self.assertIsNone(aliased["result"]["state"]["trial"])
+
+    def test_relative_traversing_and_leaf_symlink_roots_are_rejected(self):
+        leaf = self.root / "linked-root"
+        leaf.symlink_to(self.root, target_is_directory=True)
+        broken = self.root / "broken-root"
+        broken.symlink_to(self.root / "missing", target_is_directory=True)
+        for root in ("", "ExtractorDependencies", "../ExtractorDependencies", str(self.root / ".." / "ExtractorDependencies"), str(leaf), str(broken)):
+            with self.subTest(root=root):
+                result = self.call("snapshot", root=root)
+                self.assertFalse(result["ok"])
+                self.assertIn("private absolute directory", result["error"])
+
+    def test_child_symlink_directories_are_rejected_through_parent_alias(self):
+        alias = self.root / "var"
+        alias.symlink_to(self.root, target_is_directory=True)
+        for name in ("downloads", "generations"):
+            with self.subTest(name=name):
+                directory = self.root / (name + "-root")
+                directory.mkdir()
+                (directory / name).symlink_to(self.root, target_is_directory=True)
+                result = self.call("snapshot", root=str(alias / directory.name))
+                self.assertFalse(result["ok"])
+                self.assertEqual(result["error"], "Invalid dependency directory.")
+
     def test_validator_is_stdlib_only_and_does_not_import_downloaded_code(self):
         before = set(sys.modules)
         result = self.install()
@@ -389,8 +446,12 @@ class DependencyTests(unittest.TestCase):
     def test_actual_c_control_endpoint_is_stdlib_only_and_serializes_requests(self):
         sys.path.insert(0, str(HELPER.parent))
         before = set(sys.modules)
-        def invoke(action):
-            encoded = json.dumps({"action": action, "root": str(self.root)}).encode()
+        alias = self.root / "var"
+        alias.symlink_to(self.root, target_is_directory=True)
+        canonical_root = self.root / "ExtractorDependencies"
+        aliased_root = alias / "ExtractorDependencies"
+        def invoke(action, root=canonical_root):
+            encoded = json.dumps({"action": action, "root": str(root)}).encode()
             pointer = self.bridge.iy_dependency_call(b"", str(HELPER.parent).encode(), sys.executable.encode(), encoded)
             self.assertTrue(pointer)
             try:
@@ -401,6 +462,9 @@ class DependencyTests(unittest.TestCase):
             results = list(executor.map(invoke, ["snapshot"] * 8))
         self.assertTrue(all(result["ok"] for result in results))
         self.assertFalse({"yt_dlp", "yt_dlp_ejs", "certifi", "iyoinks_extract"} & (set(sys.modules) - before))
+        aliased = invoke("snapshot", aliased_root)
+        self.assertTrue(aliased["ok"], aliased.get("error"))
+        self.assertEqual(aliased, invoke("snapshot"))
         self.assertFalse(invoke("invalid")["ok"])
 
     def test_pinned_baseline_agrees_with_native_build_pins(self):
@@ -415,13 +479,17 @@ class DependencyTests(unittest.TestCase):
     def test_z_actual_c_activation_smoke_confirms_real_packages_without_network(self):
         entries = self.official_wheels()
         installed = self.helper.install(self.root, entries)
+        alias = self.root.parent / (self.root.name + "-alias")
+        alias.symlink_to(self.root.parent, target_is_directory=True)
+        self.addCleanup(alias.unlink)
+        aliased_root = alias / self.root.name
         sys.path.insert(0, str(HELPER.parent))
         spec = importlib.util.spec_from_file_location("_iy_native", self.native_output)
         native = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(native)
         sys.modules["_iy_native"] = native
-        def control(action):
-            encoded = json.dumps({"action": action, "root": str(self.root)}).encode()
+        def control(action, root=aliased_root):
+            encoded = json.dumps({"action": action, "root": str(root)}).encode()
             pointer = self.bridge.iy_dependency_call(b"", str(HELPER.parent).encode(), sys.executable.encode(), encoded)
             try:
                 return json.loads(ctypes.string_at(pointer))
@@ -445,6 +513,7 @@ class DependencyTests(unittest.TestCase):
             self.bridge.iy_free(pointer)
             self.bridge.iy_operation_free(operation)
         state = control("snapshot")["result"]["state"]
+        self.assertEqual(state, control("snapshot", self.root)["result"]["state"])
         self.assertEqual(installed["manifest"]["generation"], state["current"])
         self.assertIsNone(state["pending"])
         self.assertIsNone(state["trial"])

@@ -127,8 +127,9 @@ def atomic_json(path, value):
 
 def root_directory(value):
     root = Path(value)
-    if not root.is_absolute() or root.is_symlink() or root.resolve() != root:
+    if not root.is_absolute() or root.is_symlink() or ".." in root.parts:
         raise ValueError("The dependency directory must be a private absolute directory.")
+    root = root.resolve()
     root.mkdir(parents=True, exist_ok=True)
     for name in ("downloads", "generations"):
         directory = root / name

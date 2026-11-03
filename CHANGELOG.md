@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.2, build 8
+
+- Fix extraction-package installation through valid sandbox parent-directory aliases, including iOS `/var` and `/private/var`. Resolve the absolute private directory once instead of rejecting a different canonical spelling.
+- Use the same canonical directory for package state, downloads, generations and runtime activation. Alias and canonical requests no longer create separate activation-session identities.
+- Keep relative paths, parent traversal, dependency-directory symlinks and symlinked download/generation directories rejected. Archive, checksum, native-code and compatibility checks remain unchanged.
+- Add directory-alias regression coverage through the production Python control endpoint and actual C bridge, including installation, activation and shared persisted state. Keep the official package wheels unmodified.
+- Retain the 0.5.1 UI fixes, `yoink'd` display name, bundle identifier and existing media/settings. No dependency-state reset is required.
+
 ## 0.5.1, build 7
 
 - Fix first installation of the unmodified official yt-dlp wheel. Validate and omit its desktop share documentation without allowing extra import roots, scripts, native payloads or unsafe archive entries.

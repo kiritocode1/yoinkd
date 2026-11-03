@@ -1,5 +1,22 @@
 # Verification results
 
+## yoink'd 0.5.2
+
+This correction resolves valid absolute parent-directory aliases before using the private extraction-package directory. The previous guard rejected a path whenever its canonical spelling differed, including aliases such as iOS `/var` and `/private/var`. The exact error is reproduced through a real parent symlink on the host. The phone's actual failing directory path has not been captured.
+
+| Check | Observed result |
+| --- | --- |
+| Directory failure reproduction | Production `run("snapshot")` accepted the canonical directory and rejected its parent alias with `The dependency directory must be a private absolute directory.` Before the fix, the alias regression failed through Python and the actual C bridge. `build/0.5.2-dependencies-red.log`. |
+| Dependency suite | All 32 tests passed. Covers creating the private directory through an alias, installing/configuring a generation, shared canonical/alias activation state and unchanged official-wheel C activation. Relative/traversing paths, terminal symlinks and symlinked download/generation directories remain rejected. Existing wheel-integrity, archive, compatibility and rollback tests pass. `build/0.5.2-dependency-tests.log`. |
+| Core and extractor suites | All 58 core tests and 28 host C/QuickJS/FFmpeg extractor tests passed. `build/0.5.2-core-tests.log` and `build/0.5.2-extractor-tests.log`. These are host tests, not iOS download or playback evidence. |
+| Arm64 release build | Incremental production build passed in 10.98 seconds, SDK 27.2 and minimum iOS 17. No build errors. `build/0.5.2-release-build.log`. |
+| Final copied IPA | Version/build, ZIP CRC, updated helper bytes, display name, icons, all 68 Python module mappings, fonts, logos and Files flags passed. Pure extraction-package payloads and Python bytecode caches remain absent. `build/0.5.2-release-check.json`. |
+| Native runtime | Get, first-use installation, network updates and relaunch on the corrected signed phone build remain unverified. No UI or native-runtime implementation changes are included. |
+
+Delivery: `build/yoinkd-0.5.2.ipa`, version 0.5.2, build 8, unsigned. Archive bytes: 28,817,736. Unpacked entry bytes: 77,202,104. SHA-256: `01d9b13cfb7449559d69c62340903554a614e6cdf6fcdc97752c1428d63c5bc4`. These are ZIP measurements, not installed storage or runtime memory.
+
+Read-only collection through iDescriptor's underlying libimobiledevice services copied ten matching crash reports, all from 0.3.0 build 3 on November 2. It kept the originals on the phone. These reports do not establish a current crash or the installed app version. Private reports stay outside Git. No app was uninstalled or certificate revoked. The app display name remains `yoink'd`; the internal executable remains `iYoinks` to preserve existing identifiers. Existing dependency state, media and settings require no reset for this correction.
+
 ## yoink'd 0.5.1
 
 The focused correction plan received human approval. Current feedback screenshots are pinned in `reference/ui/0.5.1-feedback/`. This release corrects official-wheel installation, shared search dismissal, tab-text animation, History filters, capture controls and player action sizing without changing the bundle identifier, media model or native runtime versions.
