@@ -184,12 +184,14 @@ static char *initialize_runtime(const char *home, const char *packages, const ch
         config.module_search_paths_set = 1;
         PyStatus status = PyConfig_SetBytesString(&config, &config.home, home);
         if (!PyStatus_Exception(status)) status = PyConfig_SetBytesString(&config, &config.executable, executable);
-        char *stdlib = malloc(strlen(home) + 32);
+        /* The stdlib directory follows the Python headers this bridge was compiled against. */
+        size_t size = strlen(home) + 64;
+        char *stdlib = malloc(size);
         if (!stdlib) status = PyStatus_NoMemory();
         else {
-            sprintf(stdlib, "%s/lib/python3.15", home);
+            snprintf(stdlib, size, "%s/lib/python%d.%d", home, PY_MAJOR_VERSION, PY_MINOR_VERSION);
             if (!PyStatus_Exception(status)) status = append_search_path(&config, stdlib);
-            strcat(stdlib, "/lib-dynload");
+            snprintf(stdlib, size, "%s/lib/python%d.%d/lib-dynload", home, PY_MAJOR_VERSION, PY_MINOR_VERSION);
             if (!PyStatus_Exception(status)) status = append_search_path(&config, stdlib);
             free(stdlib);
         }

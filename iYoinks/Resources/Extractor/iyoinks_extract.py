@@ -1,6 +1,5 @@
 """Resolve public media links and acquire selected source formats in-process."""
 
-import contextvars
 import copy
 import hashlib
 import json
@@ -23,7 +22,6 @@ from yt_dlp.extractor.youtube.jsc._builtin.quickjs import QuickJSJCP
 from yt_dlp.utils._jsruntime import JsRuntimeInfo, QuickJsRuntime
 
 
-_operation = contextvars.ContextVar("iyoinks_operation", default=None)
 _output_support = None
 _ARTWORK_LIMIT = 8 * 1024 * 1024
 _JPEG_LIMIT = 1024 * 1024
@@ -526,7 +524,6 @@ def user_error(error):
 
 
 def run(raw_request, token=None):
-    reset = _operation.set(token)
     try:
         request = json.loads(raw_request)
         url = urllib.parse.urlsplit(request["url"])
@@ -543,5 +540,3 @@ def run(raw_request, token=None):
         return json.dumps({"ok": False, "cancelled": True, "error": "Cancelled"})
     except Exception as error:
         return json.dumps({"ok": False, "error": user_error(error)})
-    finally:
-        _operation.reset(reset)

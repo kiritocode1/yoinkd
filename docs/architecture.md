@@ -4,12 +4,12 @@ SwiftUI owns the application. Core Data stores the original six-field library mo
 
 | Component | Responsibility |
 | --- | --- |
-| YoinksCore | Validated links/files, source formats, quality selection, queue snapshots, and recoverable file transactions. |
+| YoinksCore | Validated links/files, source formats, quality selection, queue snapshots and rules (scheduling, retry, relaunch reconciliation), and recoverable file transactions. |
 | AddLinkView | Native link entry, asynchronous inspection, source metadata, and video/audio quality pickers. |
 | NativeExtractor | Swift's asynchronous boundary to the bundled C/Python runtime, cancellation, and progress callbacks. |
 | ExtractorBridge | Isolated CPython initialization, operation lifetimes, and bounded QuickJS challenge execution. |
 | iyoinks_extract.py | yt-dlp inspection, selected source acquisition, stream checkpoints, and media preparation requests. |
-| DownloadQueue | Attempt identities, state, scheduling, pause/cancel/retry, staging, and commit completion. |
+| DownloadQueue | Attempt identities, URLSession and extractor tasks, pause/cancel, staging, and commit completion. Applies the YoinksCore queue rules. |
 | SourceBackgroundWork | iOS continued-processing requests, actual progress, finite fallback time, and expiration. |
 | MediaLibrary and MediaStorage | AVFoundation validation and durable file/Core Data commits. |
 | MediaFolderPreferences | Security-scoped folder bookmarks and the default Documents location. |
