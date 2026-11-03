@@ -77,11 +77,42 @@ public struct DownloadSnapshot: Codable, Sendable {
     public let version: Int
     public let revision: UInt64
     public let jobs: [DownloadJob]
+    /// Stored jobs left out because they were unreadable, inconsistent or duplicated. Never written.
+    public let discardedJobCount: Int
+
+    private enum CodingKeys: String, CodingKey { case version, revision, jobs }
 
     public init(revision: UInt64, jobs: [DownloadJob]) {
         version = 1
         self.revision = revision
         self.jobs = jobs
+        discardedJobCount = 0
+    }
+
+    /// Decodes each job independently, so one bad entry costs that entry instead of the whole queue.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decode(Int.self, forKey: .version)
+        revision = try container.decode(UInt64.self, forKey: .revision)
+        let stored = try container.decode([StoredJob].self, forKey: .jobs)
+        var seen = Set<UUID>()
+        jobs = stored.compactMap(\.job).filter { $0.isRestorable && seen.insert($0.id).inserted }
+        discardedJobCount = stored.count - jobs.count
+    }
+}
+
+/// One journal entry whose decoding failure is kept local to that entry.
+private struct StoredJob: Decodable {
+    let job: DownloadJob?
+    init(from decoder: any Decoder) throws { job = try? DownloadJob(from: decoder) }
+}
+
+private extension DownloadJob {
+    /// Decoded jobs can still violate invariants that the queue relies on.
+    var isRestorable: Bool {
+        (try? MediaLink(sourceURL.absoluteString)) != nil
+            && progress != nil
+            && (phase != .completed || storedFile != nil)
     }
 }
 
@@ -92,22 +123,14 @@ public actor DownloadJournal {
 
     public init(url: URL) { self.url = url }
 
+    /// Throws only when the file itself is unreadable or from an unknown version.
+    /// Individual bad jobs are dropped and counted in `discardedJobCount`.
     public func load() throws -> DownloadSnapshot {
         guard FileManager.default.fileExists(atPath: url.path) else {
             return DownloadSnapshot(revision: 0, jobs: [])
         }
         let snapshot = try JSONDecoder().decode(DownloadSnapshot.self, from: Data(contentsOf: url))
-        guard snapshot.version == 1,
-              Set(snapshot.jobs.map(\.id)).count == snapshot.jobs.count else {
-            throw CocoaError(.fileReadCorruptFile)
-        }
-        for job in snapshot.jobs {
-            _ = try MediaLink(job.sourceURL.absoluteString)
-            _ = try TransferProgress(receivedBytes: job.receivedBytes, expectedBytes: job.expectedBytes)
-            if job.phase == .completed && job.storedFile == nil {
-                throw CocoaError(.fileReadCorruptFile)
-            }
-        }
+        guard snapshot.version == 1 else { throw CocoaError(.fileReadCorruptFile) }
         latestRevision = snapshot.revision
         return snapshot
     }

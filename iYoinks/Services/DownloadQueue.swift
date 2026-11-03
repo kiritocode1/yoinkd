@@ -1,9 +1,24 @@
 import Combine
 import Foundation
+import os
 import YoinksCore
+
+/// Reasons the queue refuses to accept or restart a job right now.
+enum DownloadQueueError: LocalizedError {
+    case notReady
+    case folderChanging
+
+    var errorDescription: String? {
+        switch self {
+        case .notReady: "Downloads are still opening. Try again in a moment."
+        case .folderChanging: "Wait for the save folder to finish changing."
+        }
+    }
+}
 
 @MainActor
 final class DownloadQueue: ObservableObject {
+    private static let logger = Logger(subsystem: "com.maynkudu.iyoinks", category: "queue")
     static let sessionIdentifier = "com.maynkudu.iyoinks.media-downloads"
     private let library: MediaLibrary
     private let journal: DownloadJournal
@@ -60,6 +75,9 @@ final class DownloadQueue: ObservableObject {
         restoreError = nil
         do {
             let snapshot = try await journal.load()
+            if snapshot.discardedJobCount > 0 {
+                Self.logger.error("Dropped \(snapshot.discardedJobCount, privacy: .public) unreadable jobs from the queue journal")
+            }
             jobs = snapshot.jobs
             revision = snapshot.revision
             let allTasks = await withCheckedContinuation { continuation in
@@ -83,33 +101,19 @@ final class DownloadQueue: ObservableObject {
             }
             let stagedFiles = try await library.storage.stagedMedia()
             for job in jobs {
-                if let saved = try library.item(id: job.id) {
-                    update(job.id) {
-                        $0.phase = .completed
-                        $0.storedFile = try? MediaFileName(saved.relativeFileName)
-                        $0.title = saved.title
-                        $0.taskIdentifier = nil
-                    }
-                    if job.sourceSelection != nil { try? await library.storage.removeSourceWork(id: job.id) }
-                } else if job.sourceSelection != nil, [.extracting, .downloading, .processing, .saving, .pausing, .cancelling].contains(job.phase),
-                          !stagedFiles.contains(where: { $0.id == job.id && $0.operationID == job.attemptID }) {
-                    update(job.id) {
-                        $0.phase = job.phase == .cancelling ? .cancelled : .paused
-                        $0.taskIdentifier = nil
-                        $0.attemptID = nil
-                        $0.message = job.phase == .cancelling ? nil : "Paused when yoink'd closed. Resume to continue."
-                    }
-                    if job.phase == .cancelling { try? await library.storage.removeSourceWork(id: job.id) }
-                } else if job.phase == .pausing, tasks[job.id] == nil {
-                    update(job.id) { $0.phase = .paused; $0.taskIdentifier = nil }
-                } else if (job.phase.occupiesTransferSlot || job.phase == .processing || job.phase == .saving), tasks[job.id] == nil,
-                          !stagedFiles.contains(where: { $0.id == job.id && $0.operationID == job.attemptID }) {
-                    update(job.id) {
-                        $0.phase = .failed
-                        $0.taskIdentifier = nil
-                        $0.message = "This download was interrupted. Tap Retry to continue."
-                    }
+                // An item whose stored name no longer parses is treated as unsaved, so the job never
+                // becomes completed without a file (which the journal would then refuse to load).
+                let saved = try library.item(id: job.id).flatMap { item in
+                    (try? MediaFileName(item.relativeFileName)).map { RelaunchEvidence.SavedItem(file: $0, title: item.title) }
                 }
+                let evidence = RelaunchEvidence(
+                    savedItem: saved,
+                    hasStagedFile: stagedFiles.contains { $0.id == job.id && $0.operationID == job.attemptID },
+                    hasLiveTask: tasks[job.id] != nil
+                )
+                var cleanup = RelaunchCleanup.none
+                update(job.id) { cleanup = $0.reconcileAfterRelaunch(evidence) }
+                if cleanup == .removeSourceWork { try? await library.storage.removeSourceWork(id: job.id) }
             }
             isReady = true
             isRestoring = false
@@ -138,8 +142,8 @@ final class DownloadQueue: ObservableObject {
     }
 
     private func enqueueJob(_ job: DownloadJob) async throws {
-        guard isReady else { throw CocoaError(.fileReadUnknown) }
-        guard !library.isChangingFolder else { throw ExtractorError.failed("Wait for the save folder to finish changing.") }
+        guard isReady else { throw DownloadQueueError.notReady }
+        guard !library.isChangingFolder else { throw DownloadQueueError.folderChanging }
         jobs.append(job)
         do { try await persist() } catch {
             jobs.removeAll { $0.id == job.id }
@@ -149,9 +153,8 @@ final class DownloadQueue: ObservableObject {
     }
 
     func pause(_ id: UUID) async {
-        if let current = job(id), current.sourceSelection != nil, let identity = current.identity,
-           !processing.contains(identity), let task = sourceTasks[id],
-           current.phase == .extracting || current.phase == .downloading || current.phase == .processing {
+        if let current = job(id), current.isSource, let identity = current.identity,
+           !processing.contains(identity), let task = sourceTasks[id], current.phase.isSourceWorkRunning {
             update(id) { $0.phase = .pausing }
             task.cancel()
             await saveOrReport()
@@ -169,8 +172,8 @@ final class DownloadQueue: ObservableObject {
 
     func resume(_ id: UUID) async throws {
         guard job(id)?.phase == .paused else { return }
-        guard !library.isChangingFolder else { throw ExtractorError.failed("Wait for the save folder to finish changing.") }
-        update(id) { $0.phase = .queued; $0.message = nil; $0.attemptID = nil }
+        guard !library.isChangingFolder else { throw DownloadQueueError.folderChanging }
+        update(id) { $0.requeue() }
         await saveOrReport()
         await schedule()
     }
@@ -196,16 +199,8 @@ final class DownloadQueue: ObservableObject {
 
     func retry(_ id: UUID) async throws {
         guard let current = job(id), current.phase == .failed || current.phase == .cancelled else { return }
-        guard !library.isChangingFolder else { throw ExtractorError.failed("Wait for the save folder to finish changing.") }
-        update(id) {
-            $0.phase = .queued
-            $0.message = nil
-            $0.attemptID = nil
-            $0.taskIdentifier = nil
-            $0.processedSeconds = nil
-            $0.expectedSeconds = nil
-            if $0.resumeFile == nil { $0.receivedBytes = 0; $0.expectedBytes = nil }
-        }
+        guard !library.isChangingFolder else { throw DownloadQueueError.folderChanging }
+        update(id) { $0.resetForRetry() }
         await saveOrReport()
         await schedule()
     }
@@ -227,8 +222,8 @@ final class DownloadQueue: ObservableObject {
         guard isReady, !isScheduling, !library.isChangingFolder else { return }
         isScheduling = true
         defer { isScheduling = false }
-        while occupiedSlots < 2,
-              let next = jobs.first(where: { $0.phase == .queued && ($0.sourceSelection == nil || (sourceTasks.isEmpty && appDelegate.sourceBackgroundWork.canStart)) }) {
+        while let next = jobs.nextToStart(sourceRunning: !sourceTasks.isEmpty,
+                                          canStartSource: appDelegate.sourceBackgroundWork.canStart) {
             let identity = TransferIdentity(jobID: next.id, attemptID: UUID())
             if next.sourceSelection != nil {
                 update(next.id) {
@@ -290,8 +285,7 @@ final class DownloadQueue: ObservableObject {
         guard isReady else { bufferedEvents.append(event); return }
         switch event {
         case .sourceProgress(let identity, let progress):
-            guard let current = matching(identity), current.sourceSelection != nil,
-                  [.extracting, .downloading, .processing].contains(current.phase) else { return }
+            guard let current = matching(identity), current.isSource, current.phase.isSourceWorkRunning else { return }
             update(identity.jobID) {
                 switch progress.phase {
                 case .extracting: $0.phase = .extracting
@@ -415,10 +409,6 @@ final class DownloadQueue: ObservableObject {
         finishBackgroundIfReady()
     }
 
-    private var occupiedSlots: Int {
-        jobs.filter { $0.phase.occupiesTransferSlot || ($0.sourceSelection != nil && ($0.phase == .processing || $0.phase == .saving)) }.count
-    }
-
     private func runSource(_ source: DownloadJob, identity: TransferIdentity) async {
         var failure: (any Error)?
         do {
@@ -455,7 +445,7 @@ final class DownloadQueue: ObservableObject {
 
     private func expireSource(_ identity: TransferIdentity) {
         guard let current = matching(identity), let task = sourceTasks[identity.jobID],
-              [.extracting, .downloading, .processing].contains(current.phase) else { return }
+              current.phase.isSourceWorkRunning else { return }
         update(identity.jobID) { $0.phase = .pausing; $0.message = "Paused because iOS ended background time. Resume to continue." }
         task.cancel()
         Task { await saveOrReport() }

@@ -9,6 +9,15 @@ python3 scripts/prepare-native.py
 swift test --package-path Packages/YoinksCore
 ```
 
+The core tests use Swift Testing. With Command Line Tools only (no Xcode), pass the Testing macro plugin explicitly:
+
+```sh
+swift test --package-path Packages/YoinksCore \
+  -Xswiftc -plugin-path -Xswiftc /Library/Developer/CommandLineTools/usr/lib/swift/host/plugins/testing
+```
+
+`scripts/verify-dependencies.py` and `scripts/verify-extractor.py` were written for Linux. On macOS, the host bridge build also needs `<Python/Python.h>` to resolve, `-undefined dynamic_lookup` for the extension module, and a `pkg-config` that knows Homebrew FFmpeg.
+
 The Xcode target links YoinksCore, YoinksExtractor, and SwiftFFmpeg. Its final runtime phase packages Python extension modules as frameworks. When signing is enabled, that phase signs the generated Python frameworks with the target's existing identity.
 
 Build a simulator app:
