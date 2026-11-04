@@ -20,6 +20,7 @@ struct MediaDetailView: View {
     @State private var isDeleting = false
     @State private var isScrubbing = false
     @State private var seekTime = 0.0
+    @State private var photosOutcome: PhotosSaver.Outcome?
     @ScaledMetric(relativeTo: .headline) private var actionLabelHeight: CGFloat = 44
 
     private var isRemoved: Bool { item.isDeleted || item.managedObjectContext == nil }
@@ -237,6 +238,11 @@ struct MediaDetailView: View {
                         ShareLink(item: SharedMedia(url: fileURL, title: item.title, kind: item.mediaKind ?? .video), preview: SharePreview(item.title)) {
                             Label("Share file", systemImage: "square.and.arrow.up")
                         }
+                        if !isAudio {
+                            Button("Save to Photos", systemImage: "photo.badge.plus") {
+                                Task { photosOutcome = await PhotosSaver.save(videoAt: fileURL) }
+                            }
+                        }
                     }
                     Button("Rename", systemImage: "pencil") { renameText = item.title; showsRename = true }
                     Button("Delete file", systemImage: "trash", role: .destructive) { showsDelete = true }.disabled(isDeleting)
@@ -271,6 +277,9 @@ struct MediaDetailView: View {
                     }
                 }
             } message: { Text("This removes the saved copy from yoink'd.") }
+            .alert(photosOutcome?.title ?? "", isPresented: Binding(get: { photosOutcome != nil }, set: { if !$0 { photosOutcome = nil } })) {
+                Button("OK", role: .cancel) { photosOutcome = nil }
+            } message: { Text(photosOutcome?.message ?? "") }
         }
     }
 }

@@ -82,7 +82,7 @@ def check():
     objects = project["objects"]
     single_refs = {
         "fileRef", "productRef", "package", "buildConfigurationList", "productReference",
-        "mainGroup", "productRefGroup",
+        "mainGroup", "productRefGroup", "target", "targetProxy",
     }
     list_refs = {
         "children", "buildPhases", "dependencies", "buildConfigurations",
@@ -113,10 +113,16 @@ def check():
     assert visited == set(objects), f"Unreachable objects: {set(objects) - visited}"
     pbxproject = objects[project["rootObject"]]
     assert pbxproject["isa"] == "PBXProject"
-    assert len(pbxproject["targets"]) == 1
-    target_id = pbxproject["targets"][0]
+    targets = {objects[identifier]["name"]: identifier for identifier in pbxproject["targets"]}
+    assert sorted(targets) == ["YoinkActivity", "YoinkShare", "iYoinks"], sorted(targets)
+    target_id = targets["iYoinks"]
     target = objects[target_id]
     assert target["productType"] == "com.apple.product-type.application"
+    share_id = targets["YoinkShare"]
+    share = objects[share_id]
+    activity_id = targets["YoinkActivity"]
+    activity = objects[activity_id]
+    assert share["productType"] == activity["productType"] == "com.apple.product-type.app-extension"
 
     for obj in objects.values():
         if obj["isa"] == "PBXFileReference" and obj["sourceTree"] == "<group>":
@@ -128,7 +134,8 @@ def check():
         objects[objects[identifier]["fileRef"]]["path"]
         for identifier in sources_phase["files"]
     ]
-    app_sources = sorted(str(path.relative_to(ROOT)) for path in (ROOT / "iYoinks").rglob("*.swift"))
+    shared_sources = sorted(str(path.relative_to(ROOT)) for path in (ROOT / "Shared").rglob("*.swift"))
+    app_sources = sorted([str(path.relative_to(ROOT)) for path in (ROOT / "iYoinks").rglob("*.swift")] + shared_sources)
     assert sorted(source_paths) == app_sources
     assert len(source_paths) == len(set(source_paths))
 
@@ -225,6 +232,51 @@ def check():
         assert settings["INFOPLIST_KEY_CFBundleDisplayName"] == info["CFBundleDisplayName"]
         assert [int(family) for family in settings["TARGETED_DEVICE_FAMILY"].split(",")] == info["UIDeviceFamily"]
         assert settings["INFOPLIST_KEY_UISupportedInterfaceOrientations"].split() == info["UISupportedInterfaceOrientations"]
+        assert settings["CODE_SIGN_ENTITLEMENTS"] == "iYoinks/iYoinks.entitlements"
+
+    # The share extension: its own sources, YoinksCore for the capture inbox, embedded in the app,
+    # versioned with it, and in the same App Group.
+    share_phases = [objects[identifier] for identifier in share["buildPhases"]]
+    share_sources = next(phase for phase in share_phases if phase["isa"] == "PBXSourcesBuildPhase")
+    share_paths = sorted(objects[objects[identifier]["fileRef"]]["path"] for identifier in share_sources["files"])
+    assert share_paths == sorted(str(path.relative_to(ROOT)) for path in (ROOT / "YoinkShare").rglob("*.swift"))
+    share_frameworks = next(phase for phase in share_phases if phase["isa"] == "PBXFrameworksBuildPhase")
+    share_packages = [objects[identifier]["productName"] for identifier in share["packageProductDependencies"]]
+    assert share_packages == ["YoinksCore"], "The extension links only YoinksCore; Python and FFmpeg don't fit it"
+    assert all(any(objects[build].get("productRef") == identifier for build in share_frameworks["files"])
+               for identifier in share["packageProductDependencies"])
+    embed = next(phase for phase in phases if phase.get("name") == "Embed Foundation Extensions")
+    assert embed["dstSubfolderSpec"] == 13
+    assert sorted(objects[identifier]["fileRef"] for identifier in embed["files"]) == sorted([share["productReference"], activity["productReference"]])
+    for extension_id in (share_id, activity_id):
+        assert any(objects[dependency]["target"] == extension_id for dependency in target["dependencies"])
+    # The Live Activity widget: the shared attributes plus its own views, versioned with the app.
+    activity_sources = next(objects[i] for i in activity["buildPhases"] if objects[i]["isa"] == "PBXSourcesBuildPhase")
+    activity_paths = sorted(objects[objects[i]["fileRef"]]["path"] for i in activity_sources["files"])
+    assert activity_paths == sorted(shared_sources + [str(p.relative_to(ROOT)) for p in (ROOT / "YoinkActivity").rglob("*.swift")])
+    assert not activity["packageProductDependencies"]
+    assert info.get("NSSupportsLiveActivities") is True
+    for identifier in objects[activity["buildConfigurationList"]]["buildConfigurations"]:
+        settings = objects[identifier]["buildSettings"]
+        assert settings["PRODUCT_BUNDLE_IDENTIFIER"] == config["bundleID"] + ".activity"
+        assert settings["MARKETING_VERSION"] == info["CFBundleShortVersionString"]
+        assert settings["CURRENT_PROJECT_VERSION"] == info["CFBundleVersion"]
+        widget_info = plistlib.loads((ROOT / settings["INFOPLIST_FILE"]).read_bytes())
+        assert widget_info["NSExtension"]["NSExtensionPointIdentifier"] == "com.apple.widgetkit-extension"
+    group = "group.com.maynkudu.iyoinks"
+    for identifier in objects[share["buildConfigurationList"]]["buildConfigurations"]:
+        settings = objects[identifier]["buildSettings"]
+        assert settings["PRODUCT_BUNDLE_IDENTIFIER"] == config["bundleID"] + ".share"
+        assert settings["MARKETING_VERSION"] == info["CFBundleShortVersionString"]
+        assert settings["CURRENT_PROJECT_VERSION"] == info["CFBundleVersion"]
+        assert settings["IPHONEOS_DEPLOYMENT_TARGET"] == info["MinimumOSVersion"]
+        assert settings["SWIFT_VERSION"] == "6.0"
+        share_info = plistlib.loads((ROOT / settings["INFOPLIST_FILE"]).read_bytes())
+        assert share_info["NSExtension"]["NSExtensionPointIdentifier"] == "com.apple.share-services"
+        for path in (settings["CODE_SIGN_ENTITLEMENTS"], "iYoinks/iYoinks.entitlements"):
+            entitlements = plistlib.loads((ROOT / path).read_bytes())
+            assert entitlements["com.apple.security.application-groups"] == [group], path
+    assert f'appGroup = "{group}"' in (ROOT / "Packages/YoinksCore/Sources/YoinksCore/CaptureInbox.swift").read_text()
 
     return {
         "openstep_syntax": "passed",
@@ -240,6 +292,8 @@ def check():
         "app_icon_dark_luminosity_slot": "passed",
         "original_dark_artwork": "preserved",
         "in_app_brand_assets": "passed",
+        "share_extension": "passed; embedded, YoinksCore only, versioned with the app, same App Group",
+        "live_activity_widget": "passed; embedded, shared attributes, versioned with the app",
         "swift_compilation": "not_checked_by_this_script",
         "native_ui": "not_checked_by_this_script",
     }

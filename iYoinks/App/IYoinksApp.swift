@@ -8,8 +8,8 @@ struct IYoinksApp: App {
     @UIApplicationDelegateAdaptor(IYoinksAppDelegate.self) private var appDelegate
     @State private var storage = Storage.loading
     @State private var loadRequest = 0
-    /// Held here because a `yoinkd://add` link can arrive while the library is still opening.
-    @State private var pendingCapture: CaptureRequest?
+    /// Holds links from yoinkd://, App Intents and Shortcuts, which can arrive while the library is still opening.
+    @ObservedObject private var router = AppRouter.shared
 
     init() { AppTypography.registerFonts() }
 
@@ -20,7 +20,7 @@ struct IYoinksApp: App {
                 case .loading:
                     ProgressView("Opening library")
                 case .ready(let container, let library, let queue):
-                    RootView(pendingCapture: $pendingCapture)
+                    RootView(pendingCapture: $router.pendingCapture)
                         .environment(\.managedObjectContext, container.viewContext)
                         .environmentObject(library)
                         .environmentObject(queue)
@@ -42,7 +42,7 @@ struct IYoinksApp: App {
             }
             .task { await ExtractorDependencies.shared.refreshOnLaunch() }
             .onOpenURL { url in
-                if let request = CaptureRequest(url: url) { pendingCapture = request }
+                if let request = CaptureRequest(url: url) { router.pendingCapture = request }
             }
         }
     }
@@ -68,6 +68,8 @@ struct IYoinksApp: App {
                 queue?.jobs.allSatisfy { $0.phase.isTerminal } ?? false
             }
             await queue.restore()
+            AppRouter.shared.queue = queue
+            AppRouter.shared.activities.start(observing: queue)
             return .ready(container, library, queue)
         } catch {
             return .failed(error.localizedDescription)

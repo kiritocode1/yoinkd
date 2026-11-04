@@ -28,6 +28,7 @@ struct LibraryView: View {
     @State private var deleteItem: LibraryItem?
     @State private var audioItem: LibraryItem?
     @State private var videoItem: LibraryItem?
+    @State private var photosOutcome: PhotosSaver.Outcome?
 
     private var columns: [GridItem] {
         [GridItem(.adaptive(minimum: dynamicTypeSize.isAccessibilitySize ? 280 : 160), spacing: 12)]
@@ -198,6 +199,9 @@ struct LibraryView: View {
                     }
                 }
             } message: { Text("This removes the saved copy from yoink'd.") }
+            .alert(photosOutcome?.title ?? "", isPresented: Binding(get: { photosOutcome != nil }, set: { if !$0 { photosOutcome = nil } })) {
+                Button("OK", role: .cancel) { photosOutcome = nil }
+            } message: { Text(photosOutcome?.message ?? "") }
         }
     }
 
@@ -224,6 +228,11 @@ struct LibraryView: View {
         if let media = sharedMedia(item) {
             ShareLink(item: media, preview: SharePreview(item.title)) {
                 Label("Share file", systemImage: "square.and.arrow.up")
+            }
+        }
+        if item.mediaKind != .audio, let media = sharedMedia(item) {
+            Button("Save to Photos", systemImage: "photo.badge.plus") {
+                Task { photosOutcome = await PhotosSaver.save(videoAt: media.url) }
             }
         }
         Button("Rename", systemImage: "pencil") {
