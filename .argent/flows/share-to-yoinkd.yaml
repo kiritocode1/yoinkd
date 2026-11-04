@@ -1,0 +1,55 @@
+# Shares an Instagram reel from Safari to the yoink'd share extension, which opens the app with the
+# link filled in; then checks and downloads it. Safari and the share sheet are UIKit, so their steps
+# use selectors. The extension card and the app sheet are SwiftUI: point taps on an iPhone 17
+# (iOS 27.2) simulator, each named in its echo. yoinkctl decides pass or fail.
+steps:
+  - echo: Clear the queue, library and share inbox, then open the reel in Safari
+  - script: { path: checks/reset.mjs }
+  - launch: com.apple.mobilesafari
+  - tool: open-url
+    args: { url: "https://www.instagram.com/reel/Chunk8-jurw/" }
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Watch this reel in the app" }, timeoutMs: 30000 }
+  - echo: Safari page menu (bottom bar, about 0.28, 0.93), then Share (first item, about 0.53, 0.40). The standalone runner can't read Safari's view tree, so these are accessibility waits and point taps; if Safari adds a "Translate" item above Share, the yoink'd wait below fails
+  - tool: gesture-tap
+    args: { x: 0.284, y: 0.934 }
+  - tool: await-ui-element
+    args: { condition: visible, selector: { identifier: ShareButton }, timeoutMs: 5000 }
+  - tool: gesture-tap
+    args: { x: 0.535, y: 0.402 }
+  - echo: yoink'd appears in the share sheet's app row (a system process, so not in Safari's view tree); tapping it (fourth cell, about 0.83, 0.77)
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "yoink'd", identifier: shareCell }, timeoutMs: 15000 }
+  - tool: gesture-tap
+    args: { x: 0.828, y: 0.765 }
+    delayMs: 800
+  - echo: The extension card shows the reel link; tapping its 'yoink!' (top right, about 0.86, 0.12)
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "https://www.instagram.com/reel/Chunk8-jurw/" }, timeoutMs: 15000 }
+  - tool: gesture-tap
+    args: { x: 0.86, y: 0.115 }
+    delayMs: 800
+  - echo: yoink'd opens with the shared link in the yoink! sheet
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Check link", role: Button }, timeoutMs: 30000 }
+  - script: { path: checks/inbox-empty.mjs }
+  - echo: Tapping 'Check link' (about 0.81, 0.26) once the sheet settles
+  - tool: gesture-tap
+    args: { x: 0.812, y: 0.264 }
+    delayMs: 800
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Download size" }, timeoutMs: 60000 }
+  - echo: Scrolling to the sheet's yoink! and tapping it (about 0.86, 0.91)
+  - tool: gesture-swipe
+    args: { fromX: 0.5, fromY: 0.75, toX: 0.5, toY: 0.35, momentum: false }
+  - echo: A second swipe pins the sheet to its bottom, so the yoink! button is always at the same spot
+  - tool: gesture-swipe
+    args: { fromX: 0.5, fromY: 0.75, toX: 0.5, toY: 0.35, momentum: false }
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Some source formats need conversion" }, timeoutMs: 5000 }
+  - tool: gesture-tap
+    args: { x: 0.859, y: 0.913 }
+    delayMs: 800
+  - echo: yoinkctl confirms the shared reel downloaded into the library
+  - script: { path: checks/newest-completed.mjs, timeout: 120000 }
+  - tool: screenshot

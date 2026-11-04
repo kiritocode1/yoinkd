@@ -1,0 +1,19 @@
+# Quits and relaunches yoink'd while a download is running. The relaunch rules in YoinksCore
+# (reconcileAfterRelaunch) should bring the job back paused with the "closed" message, not lose it
+# or restart it. Cleans up by resetting, since the AV1 source can't finish on the simulator.
+steps:
+  - run: start-long-download
+  - echo: Terminate and relaunch yoink'd mid-download
+  - tool: restart-app
+    args: { bundleId: com.maynkudu.iyoinks }
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Library", role: Button }, timeoutMs: 20000 }
+  - echo: yoinkctl confirms the job came back paused, with the relaunch message, and holds still
+  - script: { path: checks/newest-paused-by-relaunch.mjs, timeout: 30000 }
+  - echo: The Downloads tab shows it paused
+  - tap: { text: "Downloads", role: Button }
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Paused when yoink'd closed" }, timeoutMs: 10000 }
+  - tool: screenshot
+  - echo: Clean up the unfinished download
+  - script: { path: checks/reset.mjs }

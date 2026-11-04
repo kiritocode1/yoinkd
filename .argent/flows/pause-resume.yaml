@@ -1,0 +1,22 @@
+# Pauses a running download, checks it stops, resumes it, and checks it continues past where it
+# paused instead of restarting. Cleans up by resetting, since the AV1 source can't finish on the simulator.
+steps:
+  - run: start-long-download
+  - echo: In the Downloads row's progress layout, tapping 'Pause <title>' (right edge, about 0.90, 0.25)
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Pause Big Buck Bunny", role: Button }, timeoutMs: 5000 }
+  - tool: gesture-tap
+    args: { x: 0.898, y: 0.2545 }
+  - echo: yoinkctl confirms the job is paused and its byte count holds still
+  - script: { path: checks/newest-paused.mjs, timeout: 30000 }
+  - tool: screenshot
+  - echo: Tapping 'Resume <title>' (the play button; the paused row is taller, so it sits lower, about 0.90, 0.30)
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Resume Big Buck Bunny", role: Button }, timeoutMs: 5000 }
+  - tool: gesture-tap
+    args: { x: 0.897, y: 0.301 }
+  - echo: yoinkctl confirms the same job downloads again, past the paused byte count
+  - script: { path: checks/newest-resumed.mjs, timeout: 90000 }
+  - tool: screenshot
+  - echo: Clean up the unfinished download
+  - script: { path: checks/reset.mjs }

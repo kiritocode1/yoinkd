@@ -41,4 +41,6 @@ Select your Apple team through Xcode's existing signing settings for a device bu
 
 The command above was verified with Xcode 27.2 on an iOS 27.2 iPhone 17 simulator: the app installs and opens to the Library screen. A signed device installation remains unverified from this Mac.
 
-Check link entry, metadata, available video/audio qualities, cancel during inspection, pause and retry, offline playback, background expiration, keyboard behavior, Dynamic Type, and appearance on an iOS target. Verify older-iOS fallback behavior separately.
+`scripts/yoinkctl build` and `scripts/yoinkctl install` wrap the build and install. The saved Argent flows in `.argent/flows/` cover adding video and audio, playback, themes, pause/resume and relaunching mid-download; run one with `argent flow run add-video --device <udid>`. The `yoinkd-verify` skill (`.claude/skills/yoinkd-verify/SKILL.md`) and `docs/feature-map.md` describe the loop and the simulator gotchas.
+
+Still check by hand on an iOS target: cancel during inspection, background expiration, keyboard behavior, Dynamic Type, and older-iOS fallback behavior.

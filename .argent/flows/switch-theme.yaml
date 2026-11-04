@@ -1,0 +1,35 @@
+# Starts from System appearance and the Sage theme (confirmed in the saved preferences), switches to
+# Dark and Lavender, checks that the app saved both, then restores the defaults and checks again.
+# Point taps are for an iPhone 17 (iOS 27.2) simulator; each echo names the control it hits.
+steps:
+  - echo: Start yoink'd and open the Settings tab (a UIKit tab button, so a selector works)
+  - launch: com.maynkudu.iyoinks
+  - tap: { text: "Settings", role: Button }
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Appearance" }, timeoutMs: 10000 }
+  - echo: Set the defaults first - 'System' (about 0.23, 0.25) and the 'Sage' swatch (about 0.40, 0.36)
+  - tool: gesture-tap
+    args: { x: 0.227, y: 0.245 }
+    delayMs: 500
+  - tool: gesture-tap
+    args: { x: 0.395, y: 0.363 }
+    delayMs: 800
+  - script: { path: checks/theme-system-sage.mjs, timeout: 30000 }
+  - echo: Tapping 'Dark' (about 0.77, 0.25), then the 'Lavender' swatch (third in the first row, about 0.61, 0.36)
+  - tool: gesture-tap
+    args: { x: 0.774, y: 0.245 }
+    delayMs: 500
+  - tool: gesture-tap
+    args: { x: 0.605, y: 0.363 }
+    delayMs: 800
+  - echo: yoinkctl reads the saved appearance and theme from the app's preferences
+  - script: { path: checks/theme-dark-lavender.mjs, timeout: 30000 }
+  - tool: screenshot
+  - echo: Restore 'System' (about 0.23, 0.25) and 'Sage' (second swatch, about 0.40, 0.36)
+  - tool: gesture-tap
+    args: { x: 0.227, y: 0.245 }
+    delayMs: 500
+  - tool: gesture-tap
+    args: { x: 0.395, y: 0.363 }
+    delayMs: 800
+  - script: { path: checks/theme-system-sage.mjs, timeout: 30000 }

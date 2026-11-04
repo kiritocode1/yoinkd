@@ -18,7 +18,8 @@ ExportOptions*.plist
 /.plannotator/local-media-workflow/preview/xtool/
 /.plannotator/local-media-workflow/verified-archive/
 /.cache/
-/.argent/
+/.argent/*
+!/.argent/flows/
 /.plannotator/
 /.design-system/
 /Vendor/

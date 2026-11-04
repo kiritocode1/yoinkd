@@ -1,0 +1,423 @@
+#!/usr/bin/env python3
+"""yoinkctl: build, install and inspect yoink'd on an iOS Simulator.
+
+It never taps. Drive the UI with Argent and use yoinkctl to set up the app and read what happened:
+the download queue, the library, the extractor packages and the share inbox, all as JSON.
+
+Typical loop:
+  scripts/yoinkctl doctor
+  scripts/yoinkctl build && scripts/yoinkctl install
+  scripts/yoinkctl link https://www.youtube.com/watch?v=jNQXAC9IVRw --kind audio   # open it with Argent open-url
+  ...tap Check link and yoink! with Argent...
+  scripts/yoinkctl wait --job newest --phase completed --timeout 120
+  scripts/yoinkctl state --library
+
+The simulator is the booted one, or --udid / YOINKD_UDID. State is read from disk, so `state` and
+`wait` work while the simulator is shut down too.
+
+Exit status: 0 ok, 1 the checked condition is false (a failed job, a failed doctor check),
+2 bad input or environment (the message says how to fix it), 3 timeout.
+"""
+
+import argparse
+from datetime import datetime, timedelta, timezone
+import json
+import os
+from pathlib import Path
+import plistlib
+import shutil
+import sqlite3
+import subprocess
+import sys
+import time
+import urllib.parse
+import uuid
+
+PROJECT = Path(__file__).resolve().parent.parent
+BUNDLE = "com.maynkudu.iyoinks"
+GROUP = "group.com.maynkudu.iyoinks"
+SUBSYSTEM = "com.maynkudu.iyoinks"
+DERIVED = PROJECT / "build/DerivedData"
+APP = DERIVED / "Build/Products/Debug-iphonesimulator/iYoinks.app"
+DEVICES = Path.home() / "Library/Developer/CoreSimulator/Devices"
+REFERENCE = datetime(2001, 1, 1, tzinfo=timezone.utc)  # Foundation and Core Data dates count from here
+TERMINAL = {"completed", "failed", "cancelled"}
+
+
+class Failure(Exception):
+    """An environment or input problem. The message tells the reader how to recover."""
+
+
+def emit(value):
+    print(json.dumps(value, indent=2, default=str))
+
+
+def run(command, check=True, capture=True):
+    result = subprocess.run(command, capture_output=capture, text=True)
+    if check and result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip().splitlines()[-1:] or [""]
+        raise Failure(f"{' '.join(command[:4])} failed: {detail[0]}")
+    return result
+
+
+def simulators():
+    """Every iOS simulator CoreSimulator knows, booted first."""
+    listing = json.loads(run(["xcrun", "simctl", "list", "-j", "devices"]).stdout)["devices"]
+    found = [{"udid": d["udid"], "name": d["name"], "state": d["state"], "runtime": runtime.rsplit(".", 1)[-1]}
+             for runtime, entries in listing.items() if "iOS" in runtime
+             for d in entries if d.get("isAvailable", True)]
+    return sorted(found, key=lambda d: d["state"] != "Booted")
+
+
+def pick_udid(requested):
+    udid = requested or os.environ.get("YOINKD_UDID")
+    if udid:
+        if not (DEVICES / udid).is_dir():
+            raise Failure(f"No simulator {udid}. List them with: scripts/yoinkctl devices")
+        return udid
+    booted = [d for d in simulators() if d["state"] == "Booted"]
+    if len(booted) == 1:
+        return booted[0]["udid"]
+    if not booted:
+        raise Failure("No simulator is booted. Boot one with Argent boot-device, or pass --udid.")
+    raise Failure("Several simulators are booted: " + ", ".join(f"{d['name']} {d['udid']}" for d in booted)
+                  + ". Pass --udid or set YOINKD_UDID.")
+
+
+def device_state(udid):
+    return next((d["state"] for d in simulators() if d["udid"] == udid), "Unknown")
+
+
+def container(udid, identifier, kind):
+    """Finds a container from its metadata on disk, so it works while the simulator is shut down."""
+    for metadata in (DEVICES / udid / "data/Containers" / kind).glob("*/.com.apple.mobile_container_manager.metadata.plist"):
+        try:
+            if plistlib.loads(metadata.read_bytes()).get("MCMMetadataIdentifier") == identifier:
+                return metadata.parent
+        except (OSError, plistlib.InvalidFileException):
+            continue
+    return None
+
+
+def app_data(udid):
+    data = container(udid, BUNDLE, "Data/Application")
+    if not data:
+        raise Failure(f"yoink'd has no data on {udid}. Install it with: scripts/yoinkctl install")
+    return data
+
+
+def date_from_reference(seconds):
+    return (REFERENCE + timedelta(seconds=seconds)).isoformat() if isinstance(seconds, (int, float)) else None
+
+
+def read_jobs(data):
+    path = data / "Library/Application Support/iYoinks/Downloads/queue.json"
+    if not path.is_file():
+        return {"path": str(path), "revision": None, "jobs": []}
+    snapshot = json.loads(path.read_text())
+    jobs = []
+    for job in snapshot.get("jobs", []):
+        selection = job.get("sourceSelection") or {}
+        jobs.append({
+            "id": job.get("id"), "title": job.get("title"), "phase": job.get("phase"),
+            "kind": selection.get("kind"), "sourceURL": job.get("sourceURL"),
+            "receivedBytes": job.get("receivedBytes"), "expectedBytes": job.get("expectedBytes"),
+            "processedSeconds": job.get("processedSeconds"), "expectedSeconds": job.get("expectedSeconds"),
+            "message": job.get("message"), "storedFile": job.get("storedFile"),
+            "createdAt": date_from_reference(job.get("createdAt")),
+        })
+    jobs.sort(key=lambda job: job["createdAt"] or "")
+    return {"path": str(path), "revision": snapshot.get("revision"), "jobs": jobs,
+            "discardedBackup": (path.parent / "queue.json.discarded").is_file()}
+
+
+def read_library(data):
+    store = data / "Library/Application Support/iYoinks.sqlite"
+    if not store.is_file():
+        return {"path": str(store), "items": []}
+    connection = sqlite3.connect(f"file:{store}?mode=ro", uri=True)
+    try:
+        rows = connection.execute("SELECT ZID, ZTITLE, ZMEDIAKINDRAWVALUE, ZRELATIVEFILENAME, ZSOURCEURL, ZADDEDAT "
+                                  "FROM ZLIBRARYITEM ORDER BY ZADDEDAT").fetchall()
+    finally:
+        connection.close()
+    items = []
+    for identifier, title, kind, name, source, added in rows:
+        file = next((folder / name for folder in (data / "Documents", data / "Library/Application Support/iYoinks/Media")
+                     if name and (folder / name).is_file()), None)
+        items.append({"id": str(uuid.UUID(bytes=identifier)) if isinstance(identifier, bytes) and len(identifier) == 16 else identifier,
+                      "title": title, "kind": kind, "file": name, "sourceURL": source,
+                      "addedAt": date_from_reference(added), "fileExists": file is not None,
+                      "bytes": file.stat().st_size if file else None})
+    return {"path": str(store), "items": items}
+
+
+def read_dependencies(data):
+    root = data / "Library/Application Support/ExtractorDependencies"
+    state_file = root / "state.json"
+    if not state_file.is_file():
+        return {"path": str(root), "current": None, "packages": []}
+    state = json.loads(state_file.read_text())
+    manifest_file = root / "generations" / str(state.get("current")) / "manifest.json"
+    manifest = json.loads(manifest_file.read_text()) if manifest_file.is_file() else {}
+    return {"path": str(root), "current": state.get("current"), "previous": state.get("previous"),
+            "pending": state.get("pending"), "trial": state.get("trial"),
+            "packages": [{"name": p.get("name"), "version": p.get("version")} for p in manifest.get("packages", [])]}
+
+
+def read_inbox(udid):
+    group = container(udid, GROUP, "Shared/AppGroup")
+    if not group:
+        return {"available": False, "requests": []}
+    requests = []
+    for file in sorted((group / "CaptureInbox").glob("*.json")):
+        try:
+            entry = json.loads(file.read_text())
+            requests.append({**entry["request"], "created": date_from_reference(entry.get("created"))})
+        except (OSError, ValueError, KeyError):
+            requests.append({"file": file.name, "unreadable": True})
+    return {"available": True, "path": str(group / "CaptureInbox"), "requests": requests}
+
+
+def read_preferences(data):
+    """The app's UserDefaults (appearance, accentTheme, sort and display choices). iOS writes these
+    a few seconds after a change, so poll when checking one that was just set."""
+    path = data / f"Library/Preferences/{BUNDLE}.plist"
+    if not path.is_file():
+        return {"path": str(path), "values": {}}
+    try:
+        values = plistlib.loads(path.read_bytes())
+    except plistlib.InvalidFileException:
+        return {"path": str(path), "values": {}, "unreadable": True}
+    return {"path": str(path), "values": {key: value for key, value in values.items() if isinstance(value, (str, int, float, bool))}}
+
+
+def find_job(jobs, wanted, started):
+    if wanted == "newest":
+        recent = [job for job in jobs if started is None or (job["createdAt"] or "") >= started]
+        return recent[-1] if recent else None
+    for job in jobs:
+        if job["id"] and job["id"].lower().startswith(wanted.lower()):
+            return job
+    matches = [job for job in jobs if wanted.lower() in (job["title"] or "").lower()]
+    return matches[-1] if matches else None
+
+
+# Subcommands ---------------------------------------------------------------------------------------
+
+def command_devices(args):
+    emit(simulators())
+
+
+def command_doctor(args):
+    checks = []
+
+    def check(name, ok, detail, fix=None):
+        checks.append({"check": name, "ok": bool(ok), "detail": detail, **({} if ok or not fix else {"fix": fix})})
+
+    developer = run(["xcode-select", "-p"], check=False).stdout.strip()
+    check("xcode", developer.endswith("Xcode.app/Contents/Developer") or "Xcode" in developer, developer,
+          "Install Xcode and run: sudo xcode-select -s /Applications/Xcode.app")
+    runtimes = run(["xcrun", "simctl", "list", "runtimes"], check=False).stdout
+    check("ios-runtime", "iOS" in runtimes, "installed" if "iOS" in runtimes else "none",
+          "Run: xcodebuild -downloadPlatform iOS")
+    check("native-dependencies", (PROJECT / ".cache/native-dependencies").is_dir(), str(PROJECT / ".cache/native-dependencies"),
+          "Run: python3 scripts/prepare-native.py")
+    free = shutil.disk_usage(PROJECT).free / 2**30
+    check("disk", free > 5, f"{free:.1f} GB free", "Free at least 5 GB for builds and simulator data.")
+    try:
+        udid = pick_udid(args.udid)
+        check("simulator", True, f"{udid} {device_state(udid)}")
+        check("app-installed", container(udid, BUNDLE, "Data/Application") is not None, BUNDLE,
+              "Run: scripts/yoinkctl build && scripts/yoinkctl install")
+    except Failure as failure:
+        check("simulator", False, str(failure), "Boot a simulator with Argent boot-device.")
+    check("app-built", APP.is_dir(), str(APP), "Run: scripts/yoinkctl build")
+    emit({"ok": all(c["ok"] for c in checks), "checks": checks})
+    return 0 if all(c["ok"] for c in checks) else 1
+
+
+def command_build(args):
+    log = PROJECT / "build/yoinkctl-build.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    command = ["xcodebuild", "-project", str(PROJECT / "iYoinks.xcodeproj"), "-scheme", "iYoinks",
+               "-configuration", "Debug", "-destination", "generic/platform=iOS Simulator",
+               "-derivedDataPath", str(DERIVED), "ARCHS=arm64"]
+    if args.force_share_fallback:
+        command.append("SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) DEBUG FORCE_SHARE_FALLBACK")
+    command.append("build")
+    started = time.monotonic()
+    with log.open("w") as output:
+        code = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT).returncode
+    errors = sorted({line.strip() for line in log.read_text(errors="replace").splitlines() if " error: " in line})[:10]
+    if code != 0:
+        emit({"ok": False, "log": str(log), "errors": errors})
+        raise Failure(f"Build failed; see {log}")
+    emit({"ok": True, "app": str(APP), "seconds": round(time.monotonic() - started, 1), "log": str(log),
+          "shareExtension": (APP / "PlugIns/YoinkShare.appex").is_dir(), "forcedShareFallback": args.force_share_fallback})
+    return 0
+
+
+def command_install(args):
+    udid = pick_udid(args.udid)
+    if device_state(udid) != "Booted":
+        if not args.boot:
+            raise Failure(f"{udid} is not booted. Boot it with Argent boot-device, or pass --boot.")
+        run(["xcrun", "simctl", "bootstatus", udid, "-b"])
+    app = Path(args.app) if args.app else APP
+    if not (app / "Info.plist").is_file():
+        raise Failure(f"No built app at {app}. Run: scripts/yoinkctl build")
+    if args.fresh:
+        run(["xcrun", "simctl", "uninstall", udid, BUNDLE], check=False)
+    run(["xcrun", "simctl", "install", udid, str(app)])
+    emit({"ok": True, "udid": udid, "app": str(app), "fresh": args.fresh,
+          "next": "Launch it with Argent launch-app (bundle id com.maynkudu.iyoinks)."})
+    return 0
+
+
+def command_state(args):
+    udid = pick_udid(args.udid)
+    data = app_data(udid)
+    every = ["jobs", "library", "deps", "inbox", "prefs"]
+    sections = [name for name in every if getattr(args, name)] or every
+    result = {"udid": udid, "device": device_state(udid), "container": str(data)}
+    if "prefs" in sections: result["preferences"] = read_preferences(data)
+    if "jobs" in sections: result["queue"] = read_jobs(data)
+    if "library" in sections: result["library"] = read_library(data)
+    if "deps" in sections: result["dependencies"] = read_dependencies(data)
+    if "inbox" in sections: result["inbox"] = read_inbox(udid)
+    emit(result)
+    return 0
+
+
+def command_wait(args):
+    udid = pick_udid(args.udid)
+    data = app_data(udid)
+    wanted = {phase.strip() for phase in args.phase.split(",")}
+    started = datetime.now(timezone.utc).isoformat() if args.job == "newest" and args.new else None
+    deadline = time.monotonic() + args.timeout
+    job = None
+    while time.monotonic() < deadline:
+        job = find_job(read_jobs(data)["jobs"], args.job, started)
+        if job and job["phase"] in wanted:
+            emit({"ok": True, "job": job})
+            return 0
+        if job and job["phase"] in TERMINAL:
+            emit({"ok": False, "reason": f"job ended {job['phase']}", "job": job})
+            return 1
+        time.sleep(0.5)
+    emit({"ok": False, "reason": f"timed out after {args.timeout}s waiting for {sorted(wanted)}", "job": job})
+    return 3
+
+
+def command_logs(args):
+    udid = pick_udid(args.udid)
+    if device_state(udid) != "Booted":
+        raise Failure(f"{udid} is not booted; logs are only readable from a running simulator.")
+    predicate = 'process == "iYoinks" OR process == "YoinkShare"' if args.all else f'subsystem == "{SUBSYSTEM}"'
+    if args.follow:
+        return subprocess.call(["xcrun", "simctl", "spawn", udid, "log", "stream", "--style", "compact", "--predicate", predicate])
+    result = run(["xcrun", "simctl", "spawn", udid, "log", "show", "--last", args.last, "--style", "compact", "--predicate", predicate])
+    lines = [line for line in result.stdout.splitlines() if line and not line.startswith(("Timestamp", "Filtering"))]
+    emit({"udid": udid, "predicate": predicate, "last": args.last, "lines": lines[-args.limit:]})
+    return 0
+
+
+def command_link(args):
+    query = {"url": args.url, **({"kind": args.kind} if args.kind else {})}
+    link = "yoinkd://add?" + urllib.parse.urlencode(query, quote_via=urllib.parse.quote, safe="")
+    emit({"url": link, "next": "Open it with Argent open-url. It fills in the yoink! sheet; nothing downloads until yoink! is tapped."})
+    return 0
+
+
+def command_reset(args):
+    udid = pick_udid(args.udid)
+    data = app_data(udid)
+    support = data / "Library/Application Support"
+    targets = [data / "Documents", support / "iYoinks", *support.glob("iYoinks.sqlite*")]
+    if not args.keep_deps:
+        targets.append(support / "ExtractorDependencies")
+    group = container(udid, GROUP, "Shared/AppGroup")
+    if group:
+        targets.append(group / "CaptureInbox")
+    existing = [str(path) for path in targets if path.exists()]
+    plan = {"udid": udid, "terminateApp": device_state(udid) == "Booted", "delete": existing, "keepDependencies": args.keep_deps}
+    if args.dry_run:
+        emit({"dryRun": True, **plan})
+        return 0
+    if plan["terminateApp"]:
+        run(["xcrun", "simctl", "terminate", udid, BUNDLE], check=False)
+    for path in map(Path, existing):
+        if path.is_dir():
+            shutil.rmtree(path)
+            if path.name == "Documents":
+                path.mkdir()
+        else:
+            path.unlink()
+    emit({"dryRun": False, **plan, "next": "Launch the app with Argent launch-app for a clean start."})
+    return 0
+
+
+def parser():
+    root = argparse.ArgumentParser(prog="yoinkctl", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    root.add_argument("--udid", help="Simulator UDID (default: the booted one, or $YOINKD_UDID)")
+    commands = root.add_subparsers(dest="command", required=True, metavar="command")
+
+    def add(name, function, help_text, epilog=None):
+        sub = commands.add_parser(name, help=help_text, description=help_text, epilog=epilog,
+                                  formatter_class=argparse.RawDescriptionHelpFormatter)
+        sub.set_defaults(function=function)
+        return sub
+
+    add("devices", command_devices, "List iOS simulators as JSON, booted first.")
+    add("doctor", command_doctor, "Check Xcode, the iOS runtime, native dependencies, disk, the simulator and the app.",
+        "Each failed check carries a 'fix' with the command to run.")
+    build = add("build", command_build, "Build the simulator app with its share extension (arm64, signed ad hoc).",
+                "Output: build/DerivedData/.../iYoinks.app. The full log is build/yoinkctl-build.log.\n"
+                "Rebuild without --force-share-fallback before normal testing; the flag stays in the build until then.")
+    build.add_argument("--force-share-fallback", action="store_true",
+                       help="Build the share extension so it never opens the app, to test the App Group inbox")
+    install = add("install", command_install, "Install the built app on the simulator.")
+    install.add_argument("--app", help="Path to a .app (default: the last build)")
+    install.add_argument("--fresh", action="store_true", help="Uninstall first, clearing all app data")
+    install.add_argument("--boot", action="store_true", help="Boot the simulator if it is shut down")
+    state = add("state", command_state, "Print queue jobs, library items, extractor packages and the share inbox as JSON.",
+                "With no section flags, every section is printed. Works while the simulator is shut down.")
+    for name, text in (("jobs", "download queue"), ("library", "saved media"), ("deps", "extractor packages"),
+                       ("inbox", "share inbox"), ("prefs", "app preferences (appearance, accentTheme)")):
+        state.add_argument(f"--{name}", action="store_true", help=f"Only the {text}")
+    wait = add("wait", command_wait, "Wait until a job reaches a phase.",
+               "Exit 0 when reached, 1 if the job ends in another terminal phase, 3 on timeout.\n"
+               "Phases: queued extracting downloading waiting pausing paused processing saving cancelling completed failed cancelled")
+    wait.add_argument("--job", required=True, help="Job id prefix, a title substring, or 'newest'")
+    wait.add_argument("--phase", default="completed", help="Comma-separated phases to wait for (default: completed)")
+    wait.add_argument("--timeout", type=float, default=120, help="Seconds (default 120)")
+    wait.add_argument("--new", action="store_true", help="With --job newest: only a job created after this command started")
+    logs = add("logs", command_logs, f"Show the app's log ({SUBSYSTEM}) from the booted simulator.")
+    logs.add_argument("--last", default="5m", help="Time window, as for log show (default 5m)")
+    logs.add_argument("--limit", type=int, default=200, help="Keep the last N lines (default 200)")
+    logs.add_argument("--all", action="store_true", help="Every message from the app and share extension, not just the app subsystem")
+    logs.add_argument("--follow", action="store_true", help="Stream until interrupted (plain text, not JSON)")
+    link = add("link", command_link, "Print the yoinkd://add link that fills in the yoink! sheet.")
+    link.add_argument("url", help="The media link, e.g. https://www.instagram.com/reel/Chunk8-jurw/")
+    link.add_argument("--kind", choices=("video", "audio"), help="Preferred media kind after the check")
+    reset = add("reset", command_reset, "Delete the queue, library, media and share inbox from the app's data.",
+                "Keeps the installed app. Use --dry-run first to see exactly what would be deleted.")
+    reset.add_argument("--dry-run", action="store_true", help="Show what would be deleted, delete nothing")
+    reset.add_argument("--keep-deps", action="store_true", help="Keep the downloaded extractor packages (saves a re-download)")
+    return root
+
+
+def main():
+    args = parser().parse_args()
+    try:
+        return args.function(args) or 0
+    except Failure as failure:
+        print(json.dumps({"ok": False, "error": str(failure)}), file=sys.stderr)
+        return 2
+    except KeyboardInterrupt:
+        return 130
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

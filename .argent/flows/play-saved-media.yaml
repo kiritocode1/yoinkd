@@ -1,0 +1,20 @@
+# Downloads audio with add-audio, then plays it from the Library and checks that playback advances.
+steps:
+  - run: add-audio
+  - echo: Open the Library tab (a UIKit tab button, so a selector works)
+  - tap: { text: "Library", role: Button }
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Audio · 1.4 MB" }, timeoutMs: 10000 }
+  - echo: Tapping the "Me at the zoo" item (first grid cell, about 0.27, 0.34)
+  - tool: gesture-tap
+    args: { x: 0.268, y: 0.337 }
+    delayMs: 500
+  - echo: The audio player opens playing, with Pause showing and the format FLAC
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Pause", role: Button }, timeoutMs: 10000 }
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "FLAC" }, timeoutMs: 2000 }
+  - echo: Playback advances to 0:03, so the file decodes and plays
+  - tool: await-ui-element
+    args: { condition: text, selector: { text: "Playback position" }, expectedText: "0:03", timeoutMs: 15000 }
+  - tool: screenshot

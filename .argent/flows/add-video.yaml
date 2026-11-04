@@ -1,0 +1,41 @@
+# Waits use await-ui-element (the accessibility tree): flow selectors read the UIView tree, which
+# has no SwiftUI views, so only UIKit elements such as the tab buttons resolve there. Taps on SwiftUI
+# controls are points on an iPhone 17 (iOS 27.2) simulator; each echo names the control it hits.
+# yoinkctl, not the screen, decides pass or fail.
+steps:
+  - echo: Clear the queue and library, then start yoink'd fresh on the empty Library
+  - script: { path: checks/reset.mjs }
+  - launch: com.maynkudu.iyoinks
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "No saved media" }, timeoutMs: 20000 }
+  - echo: Fill in the yoink! sheet with an Instagram reel through yoinkd://add (kind=video)
+  - tool: open-url
+    args: { url: "yoinkd://add?url=https%3A%2F%2Fwww.instagram.com%2Freel%2FChunk8-jurw%2F&kind=video" }
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Check link", role: Button }, timeoutMs: 10000 }
+  - echo: Tapping 'Check link' (button right of the link field, about 0.81, 0.26) once the sheet settles
+  - tool: gesture-tap
+    args: { x: 0.812, y: 0.264 }
+    delayMs: 800
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Download size" }, timeoutMs: 60000 }
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Source, Instagram" }, timeoutMs: 2000 }
+  - echo: Scrolling the sheet to its yoink! button, below 'Save to'
+  - tool: gesture-swipe
+    args: { fromX: 0.5, fromY: 0.75, toX: 0.5, toY: 0.35, momentum: false }
+  - echo: A second swipe pins the sheet to its bottom, so the yoink! button is always at the same spot
+  - tool: gesture-swipe
+    args: { fromX: 0.5, fromY: 0.75, toX: 0.5, toY: 0.35, momentum: false }
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Some source formats need conversion" }, timeoutMs: 5000 }
+  - echo: Tapping the sheet's 'yoink!' (bottom right of the sheet, about 0.86, 0.91) once the scroll settles
+  - tool: gesture-tap
+    args: { x: 0.859, y: 0.913 }
+    delayMs: 800
+  - echo: The sheet closes and the app switches to Downloads
+  - tool: await-ui-element
+    args: { condition: hidden, selector: { text: "Some source formats need conversion" }, timeoutMs: 10000 }
+  - echo: yoinkctl confirms the job completed and the file is in the library
+  - script: { path: checks/newest-completed.mjs, timeout: 120000 }
+  - tool: screenshot

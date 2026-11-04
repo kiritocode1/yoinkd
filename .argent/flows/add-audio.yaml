@@ -1,0 +1,39 @@
+# Same approach as add-video.yaml: accessibility-tree waits, point taps for SwiftUI controls on an
+# iPhone 17 (iOS 27.2) simulator, and yoinkctl for the verdict.
+steps:
+  - echo: Clear the queue and library, then start yoink'd fresh on the empty Library
+  - script: { path: checks/reset.mjs }
+  - launch: com.maynkudu.iyoinks
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "No saved media" }, timeoutMs: 20000 }
+  - echo: Fill in the yoink! sheet with a YouTube video through yoinkd://add (kind=audio)
+  - tool: open-url
+    args: { url: "yoinkd://add?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DjNQXAC9IVRw&kind=audio" }
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Check link", role: Button }, timeoutMs: 10000 }
+  - echo: Tapping 'Check link' (button right of the link field, about 0.81, 0.26) once the sheet settles
+  - tool: gesture-tap
+    args: { x: 0.812, y: 0.264 }
+    delayMs: 800
+  - echo: The check shows "Me at the zoo" (0:19) with Audio chosen because the link asked for it
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Download size" }, timeoutMs: 60000 }
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Duration, 0:19" }, timeoutMs: 2000 }
+  - echo: Scrolling the sheet to its yoink! button, below the audio format note
+  - tool: gesture-swipe
+    args: { fromX: 0.5, fromY: 0.75, toX: 0.5, toY: 0.35, momentum: false }
+  - echo: A second swipe pins the sheet to its bottom, so the yoink! button is always at the same spot
+  - tool: gesture-swipe
+    args: { fromX: 0.5, fromY: 0.75, toX: 0.5, toY: 0.35, momentum: false }
+  - tool: await-ui-element
+    args: { condition: visible, selector: { text: "Keeps playable source audio" }, timeoutMs: 5000 }
+  - echo: Tapping the sheet's 'yoink!' (bottom right of the sheet, about 0.86, 0.91) once the scroll settles
+  - tool: gesture-tap
+    args: { x: 0.859, y: 0.913 }
+    delayMs: 800
+  - tool: await-ui-element
+    args: { condition: hidden, selector: { text: "Keeps playable source audio" }, timeoutMs: 10000 }
+  - echo: yoinkctl confirms the job completed and the audio file is in the library
+  - script: { path: checks/newest-completed-audio.mjs, timeout: 120000 }
+  - tool: screenshot
